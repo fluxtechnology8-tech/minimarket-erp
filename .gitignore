@@ -1,0 +1,22 @@
+# Entorno virtual
+venv/
+.env
+
+# Python cache
+**pycache**/
+*.pyc
+*.pyo
+*.pyd
+
+# Base de datos
+data/*.db
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# VS Code (opcional)
+.vscode/
