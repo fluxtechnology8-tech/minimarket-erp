@@ -144,7 +144,7 @@ class KardexView(ft.Column):
                                             expand=True,
                                         ),
                                         ft.Container(
-                                            padding=ft.padding.symmetric(
+                                            padding=ft.Padding.symmetric(
                                                 horizontal=12, vertical=8
                                             ),
                                             border_radius=16,

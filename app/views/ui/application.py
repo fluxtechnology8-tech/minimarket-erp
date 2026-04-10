@@ -202,7 +202,7 @@ class MinimarketApp:
 
         header = ft.Container(
             bgcolor=colors["surface"],
-            padding=ft.padding.only(left=16, right=16, top=42, bottom=12),
+            padding=ft.Padding.only(left=16, right=16, top=42, bottom=12),
             content=ft.Row(
                 [
                     ft.Column(
