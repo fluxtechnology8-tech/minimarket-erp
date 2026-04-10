@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import flet as ft
-from app.core.database import Database
+from app.core.init_db import init_db
 from app.views.ui.theme import AppTheme
 from app.views.pages import (
     BoletasView,
@@ -13,10 +13,60 @@ from app.views.pages import (
     SyncView,
 )
 
+from app.repositories import (
+    ProductoRepository,
+    KardexRepository,
+    GastoRepository,
+    VentaRepository,
+    ReporteRepository,
+    SyncRepository,
+)
+
+from app.services import (
+    ProductoService,
+    KardexService,
+    GastoService,
+    VentaService,
+    ReporteService,
+    SyncService,
+)
+
+from app.controllers import (
+    ProductoController,
+    KardexController,
+    GastoController,
+    VentaController,
+    ReporteController,
+    SyncController,
+)
+
 
 class MinimarketApp:
     def __init__(self):
-        self.db = Database()
+        init_db()
+        self._init_dependencies()
+
+    def _init_dependencies(self):
+        producto_repo = ProductoRepository()
+        kardex_repo = KardexRepository()
+        gasto_repo = GastoRepository()
+        venta_repo = VentaRepository()
+        reporte_repo = ReporteRepository()
+        sync_repo = SyncRepository()
+
+        producto_service = ProductoService(producto_repo, kardex_repo)
+        kardex_service = KardexService(kardex_repo, producto_repo)
+        gasto_service = GastoService(gasto_repo)
+        venta_service = VentaService(venta_repo, producto_repo, kardex_repo)
+        reporte_service = ReporteService(reporte_repo)
+        sync_service = SyncService(sync_repo)
+
+        self.producto_controller = ProductoController(producto_service)
+        self.kardex_controller = KardexController(kardex_service)
+        self.gasto_controller = GastoController(gasto_service)
+        self.venta_controller = VentaController(venta_service)
+        self.reporte_controller = ReporteController(reporte_service)
+        self.sync_controller = SyncController(sync_service)
         self.page: ft.Page | None = None
         self.content_area: ft.Container | None = None
         self.nav_rail: ft.NavigationRail | None = None
@@ -350,15 +400,15 @@ class MinimarketApp:
 
         is_mobile = self.is_mobile
         views = {
-            0: DashboardView(self.db, is_mobile),
-            1: ProductosView(self.page, self.db, is_mobile),
-            2: KardexView(self.page, self.db, is_mobile),
-            3: BoletasView(self.page, self.db),
-            4: GastosView(self.page, self.db, is_mobile),
-            5: ReportesView(self.db),
-            6: SyncView(self.page, self.db, is_mobile),
+            0: DashboardView(self.reporte_controller, is_mobile),
+            1: ProductosView(self.page, self.producto_controller, self.kardex_controller, is_mobile),
+            2: KardexView(self.page, self.kardex_controller, self.producto_controller, is_mobile),
+            3: BoletasView(self.page, self.venta_controller),
+            4: GastosView(self.page, self.gasto_controller, is_mobile),
+            5: ReportesView(self.reporte_controller),
+            6: SyncView(self.page, self.sync_controller, is_mobile),
         }
-        return views.get(index, DashboardView(self.db, is_mobile))
+        return views.get(index, DashboardView(self.reporte_controller, is_mobile))
 
 
 if __name__ == "__main__":

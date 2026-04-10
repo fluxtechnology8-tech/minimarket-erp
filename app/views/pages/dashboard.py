@@ -7,14 +7,14 @@ from app.views.ui.utils import money
 
 
 class DashboardView(ft.Container):
-    def __init__(self, db, is_mobile: bool = False):
+    def __init__(self, controller, is_mobile: bool = False):
         super().__init__(expand=True, padding=0)
-        self.db = db
+        self.controller = controller
         self.is_mobile = is_mobile
         self.build_view()
 
     def build_view(self) -> None:
-        metrics = self.db.get_dashboard_metrics()
+        metrics = self.controller.get_dashboard_metrics()
         max_total = (
             max([item["total"] for item in metrics["daily_sales"]], default=0) or 1
         )

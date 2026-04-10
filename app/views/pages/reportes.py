@@ -8,14 +8,14 @@ from app.views.ui.utils import money
 
 
 class ReportesView(ft.Column):
-    def __init__(self, db):
+    def __init__(self, controller):
         super().__init__(expand=True, scroll=ft.ScrollMode.AUTO, spacing=20)
-        self.db = db
+        self.controller = controller
         self.padding = 20
         self.build_view()
 
     def build_view(self) -> None:
-        metrics = self.db.get_report_metrics()
+        metrics = self.controller.get_report_metrics()
         if metrics["top_productos"]:
             top_controls = [
                 ft.ListTile(

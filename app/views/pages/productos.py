@@ -7,10 +7,11 @@ from app.views.ui.utils import money, parse_float, parse_int
 
 
 class ProductosView(ft.Container):
-    def __init__(self, page: ft.Page, db, is_mobile: bool = False):
+    def __init__(self, page: ft.Page, producto_controller, kardex_controller, is_mobile: bool = False):
         super().__init__(expand=True, padding=0)
         self._page = page
-        self.db = db
+        self.producto_controller = producto_controller
+        self.kardex_controller = kardex_controller
         self.is_mobile = is_mobile
         self.search_text = ""
         self.list_view = ft.GridView(
@@ -144,7 +145,7 @@ class ProductosView(ft.Container):
         self.update()
 
     def get_filtered_products(self) -> list[dict]:
-        productos = self.db.get_productos()
+        productos = self.producto_controller.get_all()
         if not self.search_text:
             return productos
         return [
@@ -279,28 +280,22 @@ class ProductosView(ft.Container):
         def save_product(_):
             try:
                 cantidad_inicial = parse_int(stock.value)
-                producto_id = self.db.add_producto(
+                precio_compra_val = parse_float(precio_compra.value)
+                result = self.producto_controller.create_with_stock_inicial(
                     {
                         "codigo": codigo.value.strip(),
                         "nombre": nombre.value.strip(),
                         "categoria": categoria.value.strip(),
-                        "precio_compra": parse_float(precio_compra.value),
+                        "precio_compra": precio_compra_val,
                         "precio_venta": parse_float(precio_venta.value),
                         "stock": 0,
                         "stock_minimo": parse_int(stock_minimo.value, 5),
                         "unidad": unidad.value.strip() or "unidad",
                         "descripcion": descripcion.value.strip(),
-                    }
+                    },
+                    cantidad_inicial,
+                    precio_compra_val,
                 )
-                if cantidad_inicial > 0:
-                    self.db.registrar_movimiento(
-                        producto_id,
-                        "ENTRADA",
-                        cantidad_inicial,
-                        parse_float(precio_compra.value),
-                        "Stock inicial",
-                        "ALTA",
-                    )
                 dialog.open = False
                 self.refresh_products()
                 self.update()

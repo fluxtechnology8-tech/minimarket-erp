@@ -8,10 +8,10 @@ from app.views.ui.utils import money, parse_float, short_datetime
 
 
 class GastosView(ft.Column):
-    def __init__(self, page: ft.Page, db, is_mobile: bool = False):
+    def __init__(self, page: ft.Page, controller, is_mobile: bool = False):
         super().__init__(expand=True, scroll=ft.ScrollMode.AUTO, spacing=20)
         self._page = page
-        self.db = db
+        self.controller = controller
         self.is_mobile = is_mobile
         self.padding = 20
         self.gastos_container = ft.Column(spacing=10)
@@ -73,7 +73,7 @@ class GastosView(ft.Column):
             ]
 
     def refresh_gastos(self) -> None:
-        gastos = self.db.get_gastos(limit=30)
+        gastos = self.controller.get_all(limit=30)
         if not gastos:
             self.gastos_container.controls = [
                 empty_state(
@@ -131,7 +131,7 @@ class GastosView(ft.Column):
 
     def save_gasto(self, e) -> None:
         try:
-            self.db.add_gasto(
+            self.controller.create(
                 {
                     "concepto": (self.concepto.value or "").strip(),
                     "monto": parse_float(self.monto.value),

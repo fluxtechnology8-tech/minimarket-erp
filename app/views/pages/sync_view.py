@@ -10,10 +10,10 @@ from app.views.ui.theme import AppTheme
 
 
 class SyncView(ft.Column):
-    def __init__(self, page: ft.Page, db, is_mobile: bool = False):
+    def __init__(self, page: ft.Page, controller, is_mobile: bool = False):
         super().__init__(expand=True, scroll=ft.ScrollMode.AUTO, spacing=20)
         self._page = page
-        self.db = db
+        self.controller = controller
         self.is_mobile = is_mobile
         self.padding = 20
 
@@ -137,7 +137,7 @@ class SyncView(ft.Column):
 
     async def on_export_folder_click(self, e) -> None:
         try:
-            src_bytes = self.db.get_export_bytes()
+            src_bytes = self.controller.get_export_bytes()
 
             filename = (
                 f"backup_papeleria_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -181,8 +181,8 @@ class SyncView(ft.Column):
 
     def export_data(self, e) -> None:
         try:
-            path = self.db.export_data(self.export_path.value.strip())
-            self.status_text.value = f"Respaldo exportado correctamente en: {path}"
+            result = self.controller.export_data(self.export_path.value.strip())
+            self.status_text.value = f"Respaldo exportado correctamente en: {result.get('path', '')}"
             self.status_text.color = AppTheme.SUCCESS
         except Exception as exc:
             self.status_text.value = f"No se pudo exportar: {exc}"
@@ -197,8 +197,8 @@ class SyncView(ft.Column):
 
     def _import_data(self, merge: bool) -> None:
         try:
-            self.db.import_data(self.import_path.value.strip(), merge=merge)
-            mode = "fusionado" if merge else "reemplazado"
+            result = self.controller.import_data(self.import_path.value.strip(), merge=merge)
+            mode = result.get("mode", "desconocido")
             self.status_text.value = f"Archivo importado correctamente. Estado: {mode}."
             self.status_text.color = AppTheme.SUCCESS
         except Exception as exc:

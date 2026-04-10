@@ -8,10 +8,11 @@ from app.views.ui.utils import money, parse_float, parse_int, short_datetime
 
 
 class KardexView(ft.Column):
-    def __init__(self, page: ft.Page, db, is_mobile: bool = False):
+    def __init__(self, page: ft.Page, kardex_controller, producto_controller, is_mobile: bool = False):
         super().__init__(expand=True, scroll=ft.ScrollMode.AUTO, spacing=20)
         self._page = page
-        self.db = db
+        self.kardex_controller = kardex_controller
+        self.producto_controller = producto_controller
         self.is_mobile = is_mobile
         self.padding = 20
         self.rows_container = ft.Column(spacing=10)
@@ -98,11 +99,11 @@ class KardexView(ft.Column):
             ft.dropdown.Option(
                 str(producto["id"]), f"{producto['codigo']} - {producto['nombre']}"
             )
-            for producto in self.db.get_productos()
+            for producto in self.producto_controller.get_all()
         ]
 
     def refresh_rows(self) -> None:
-        movimientos = self.db.get_kardex(limit=50)
+        movimientos = self.kardex_controller.get_all(limit=50)
         if not movimientos:
             self.rows_container.controls = [
                 empty_state(
@@ -190,7 +191,7 @@ class KardexView(ft.Column):
 
     def save_movimiento(self, e) -> None:
         try:
-            self.db.registrar_movimiento(
+            self.kardex_controller.registrar_movimiento(
                 producto_id=int(self.product_dropdown.value),
                 tipo=self.tipo_dropdown.value,
                 cantidad=parse_int(self.cantidad_field.value, 1),

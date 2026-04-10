@@ -25,13 +25,20 @@ def money(value: float) -> str:
     return f"S/ {value:,.2f}"
 
 
-def short_datetime(value: str | None) -> str:
+def short_datetime(value: str | datetime | None) -> str:
     if not value:
         return "-"
-    normalized = value.replace("T", " ")
-    for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
-        try:
-            return datetime.strptime(normalized, fmt).strftime("%d/%m/%Y %H:%M")
-        except ValueError:
-            continue
-    return normalized
+    
+    if isinstance(value, datetime):
+        return value.strftime("%d/%m/%Y %H:%M")
+    
+    if isinstance(value, str):
+        normalized = value.replace("T", " ")
+        for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(normalized, fmt).strftime("%d/%m/%Y %H:%M")
+            except ValueError:
+                continue
+        return normalized
+    
+    return str(value)

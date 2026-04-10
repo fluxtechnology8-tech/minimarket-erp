@@ -7,10 +7,10 @@ from app.views.ui.utils import money, parse_int, short_datetime
 
 
 class BoletasView(ft.Container):
-    def __init__(self, page: ft.Page, db):
+    def __init__(self, page: ft.Page, controller):
         super().__init__(expand=True, padding=0)
         self._page = page
-        self.db = db
+        self.controller = controller
         self.carrito = []
         self.cart_list = ft.ListView(spacing=8, expand=True)
         self.ventas_list = ft.ListView(spacing=8, expand=True)
@@ -235,7 +235,7 @@ class BoletasView(ft.Container):
 
     def _product_options(self):
         options = []
-        for producto in self.db.get_productos():
+        for producto in self.controller.get_productos_con_stock():
             if int(producto.get("stock") or 0) <= 0:
                 continue
             label = f"{producto['codigo']} - {producto['nombre']} ({money(float(producto['precio_venta'] or 0))})"
@@ -246,7 +246,7 @@ class BoletasView(ft.Container):
         if not self.product_dropdown.value:
             self.show_message("Seleccione un producto.")
             return
-        producto = self.db.get_producto(int(self.product_dropdown.value))
+        producto = self.controller.get_producto(int(self.product_dropdown.value))
         if not producto:
             self.show_message("El producto ya no existe.")
             return
@@ -354,7 +354,7 @@ class BoletasView(ft.Container):
         self.update()
 
     def refresh_sales(self) -> None:
-        ventas = self.db.get_ventas(limit=12)
+        ventas = self.controller.get_all(limit=12)
         if not ventas:
             self.ventas_list.controls = [
                 empty_state(
@@ -403,11 +403,12 @@ class BoletasView(ft.Container):
 
     def generate_sale(self, e) -> None:
         try:
-            numero = self.db.generar_boleta(
+            result = self.controller.generar_boleta(
                 self.carrito,
                 cliente_nombre=(self.cliente_nombre.value or "").strip(),
                 cliente_documento=(self.cliente_documento.value or "").strip(),
             )
+            numero = result.get("numero_boleta", "")
             self.carrito = []
             self.cliente_nombre.value = ""
             self.cliente_documento.value = ""

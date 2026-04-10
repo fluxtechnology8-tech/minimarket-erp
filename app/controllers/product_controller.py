@@ -1,4 +1,4 @@
-from app.models.product import Product
+from app.models.producto import Product
 from app.helpers.get_db import get_db
 from app.schemas.product_schema import ProductCreateSchema
 import random
