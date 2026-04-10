@@ -1,4 +1,4 @@
-from app.services.producto_service import ProductoService
+from services.producto_service import ProductoService
 
 
 class ProductoController:

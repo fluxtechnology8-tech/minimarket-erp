@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta
 
-from app.core.database import get_session_manager
-from app.models.producto import Producto
-from app.models.venta import Venta
-from app.models.venta_detalle import VentaDetalle
-from app.models.gasto import Gasto
+from core.database import get_session_manager
+from models.producto import Producto
+from models.venta import Venta
+from models.venta_detalle import VentaDetalle
+from models.gasto import Gasto
 
 
 class ReporteRepository:
@@ -58,7 +58,7 @@ class ReporteRepository:
                 total = sum(v.total for v in ventas_del_dia)
                 daily_sales.append({"date": day, "total": float(total)})
 
-            from app.repositories.producto_repository import ProductoRepository
+            from repositories.producto_repository import ProductoRepository
             producto_repo = ProductoRepository(self._sm)
 
             return {

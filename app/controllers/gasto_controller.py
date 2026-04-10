@@ -1,4 +1,4 @@
-from app.services.gasto_service import GastoService
+from services.gasto_service import GastoService
 
 
 class GastoController:

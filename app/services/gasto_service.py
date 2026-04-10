@@ -1,4 +1,4 @@
-from app.repositories.gasto_repository import GastoRepository
+from repositories.gasto_repository import GastoRepository
 
 
 class GastoService:

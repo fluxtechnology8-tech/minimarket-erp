@@ -1,4 +1,4 @@
-from app.services.kardex_service import KardexService
+from services.kardex_service import KardexService
 
 
 class KardexController:

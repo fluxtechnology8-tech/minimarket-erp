@@ -1,7 +1,7 @@
 from datetime import datetime
-from app.core.database import get_session_manager
-from app.models.kardex import Kardex
-from app.models.producto import Producto
+from core.database import get_session_manager
+from models.kardex import Kardex
+from models.producto import Producto
 
 
 class KardexRepository:

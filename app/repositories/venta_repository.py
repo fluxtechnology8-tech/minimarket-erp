@@ -1,6 +1,6 @@
-from app.core.database import get_session_manager
-from app.models.venta import Venta
-from app.models.venta_detalle import VentaDetalle
+from core.database import get_session_manager
+from models.venta import Venta
+from models.venta_detalle import VentaDetalle
 
 
 class VentaRepository:

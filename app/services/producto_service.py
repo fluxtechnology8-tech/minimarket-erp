@@ -1,5 +1,5 @@
-from app.repositories.producto_repository import ProductoRepository
-from app.repositories.kardex_repository import KardexRepository
+from repositories.producto_repository import ProductoRepository
+from repositories.kardex_repository import KardexRepository
 
 
 class ProductoService:

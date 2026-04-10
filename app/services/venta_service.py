@@ -1,7 +1,7 @@
 from datetime import datetime
-from app.repositories.venta_repository import VentaRepository
-from app.repositories.producto_repository import ProductoRepository
-from app.repositories.kardex_repository import KardexRepository
+from repositories.venta_repository import VentaRepository
+from repositories.producto_repository import ProductoRepository
+from repositories.kardex_repository import KardexRepository
 
 
 class VentaService:

@@ -1,4 +1,4 @@
-from app.repositories.reporte_repository import ReporteRepository
+from repositories.reporte_repository import ReporteRepository
 
 
 class ReporteService:

@@ -2,12 +2,12 @@ import json
 import sqlite3
 from pathlib import Path
 
-from app.core.database import get_session_manager
-from app.models.producto import Producto
-from app.models.kardex import Kardex
-from app.models.gasto import Gasto
-from app.models.venta import Venta
-from app.models.venta_detalle import VentaDetalle
+from core.database import get_session_manager
+from models.producto import Producto
+from models.kardex import Kardex
+from models.gasto import Gasto
+from models.venta import Venta
+from models.venta_detalle import VentaDetalle
 
 
 class SyncRepository:

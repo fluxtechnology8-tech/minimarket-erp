@@ -1,5 +1,5 @@
-from app.core.database import get_session_manager
-from app.models.producto import Producto
+from core.database import get_session_manager
+from models.producto import Producto
 
 
 class ProductoRepository:

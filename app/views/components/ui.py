@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import flet as ft
-from app.views.ui.theme import AppTheme
+from views.ui.theme import AppTheme
 
 class StatCard(ft.Container):
     def __init__(self, title: str, value: str, icon: ft.IconData, color: str):

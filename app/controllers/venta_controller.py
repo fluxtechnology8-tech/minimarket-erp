@@ -1,4 +1,4 @@
-from app.services.venta_service import VentaService
+from services.venta_service import VentaService
 
 
 class VentaController:

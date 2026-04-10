@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import flet as ft
-from app.core.init_db import init_db
-from app.views.ui.theme import AppTheme
-from app.views.pages import (
+from core.init_db import init_db
+from views.ui.theme import AppTheme
+from views.pages import (
     BoletasView,
     DashboardView,
     GastosView,
@@ -13,7 +13,7 @@ from app.views.pages import (
     SyncView,
 )
 
-from app.repositories import (
+from repositories import (
     ProductoRepository,
     KardexRepository,
     GastoRepository,
@@ -22,7 +22,7 @@ from app.repositories import (
     SyncRepository,
 )
 
-from app.services import (
+from services import (
     ProductoService,
     KardexService,
     GastoService,
@@ -31,7 +31,7 @@ from app.services import (
     SyncService,
 )
 
-from app.controllers import (
+from controllers import (
     ProductoController,
     KardexController,
     GastoController,
@@ -413,4 +413,4 @@ class MinimarketApp:
 
 if __name__ == "__main__":
     app = MinimarketApp()
-    app.run()
+    run()

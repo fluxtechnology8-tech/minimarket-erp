@@ -1,4 +1,4 @@
-from app.services.reporte_service import ReporteService
+from services.reporte_service import ReporteService
 
 
 class ReporteController:

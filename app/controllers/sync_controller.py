@@ -1,4 +1,4 @@
-from app.services.sync_service import SyncService
+from services.sync_service import SyncService
 
 
 class SyncController:

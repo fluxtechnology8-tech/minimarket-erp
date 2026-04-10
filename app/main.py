@@ -1,5 +1,5 @@
-from app.views.ui.application import MinimarketApp
-from app.core.init_db import init_db
+from views.ui.application import MinimarketApp
+from core.init_db import init_db
 
 _app = None
 

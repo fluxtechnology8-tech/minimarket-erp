@@ -1,5 +1,5 @@
-from app.core.database import get_session_manager
-from app.models.gasto import Gasto
+from core.database import get_session_manager
+from models.gasto import Gasto
 
 
 class GastoRepository:

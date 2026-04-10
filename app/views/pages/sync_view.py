@@ -5,8 +5,8 @@ from pathlib import Path
 
 import flet as ft
 
-from app.views.components.ui import section_card
-from app.views.ui.theme import AppTheme
+from views.components.ui import section_card
+from views.ui.theme import AppTheme
 
 
 class SyncView(ft.Column):

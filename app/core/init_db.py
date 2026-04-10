@@ -1,10 +1,10 @@
-from app.core.database import Base, engine
+from core.database import Base, engine
 
-from app.models.producto import Producto
-from app.models.gasto import Gasto
-from app.models.kardex import Kardex
-from app.models.venta_detalle import VentaDetalle
-from app.models.venta import Venta
+from models.producto import Producto
+from models.gasto import Gasto
+from models.kardex import Kardex
+from models.venta_detalle import VentaDetalle
+from models.venta import Venta
 
 
 def init_db():

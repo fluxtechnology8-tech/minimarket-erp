@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from app.repositories.sync_repository import SyncRepository
+from repositories.sync_repository import SyncRepository
 
 
 class SyncService:
