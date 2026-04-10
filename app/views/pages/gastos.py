@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import flet as ft
 
-from app.components.ui import empty_state, section_card
-from app.ui.theme import AppTheme
-from app.ui.utils import money, parse_float, short_datetime
+from app.views.components.ui import empty_state, section_card
+from app.views.ui.theme import AppTheme
+from app.views.ui.utils import money, parse_float, short_datetime
 
 
 class GastosView(ft.Column):

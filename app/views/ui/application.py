@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import flet as ft
 from app.core.database import Database
-from app.ui.theme import AppTheme
-from app.views import (
+from app.views.ui.theme import AppTheme
+from app.views.pages import (
     BoletasView,
     DashboardView,
     GastosView,

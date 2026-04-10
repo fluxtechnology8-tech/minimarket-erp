@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import flet as ft
-from app.ui.theme import AppTheme
-
+from app.views.ui.theme import AppTheme
 
 class StatCard(ft.Container):
     def __init__(self, title: str, value: str, icon: ft.IconData, color: str):
@@ -58,7 +57,6 @@ def section_card(
         padding=24,
         content=ft.Column([header] + controls, spacing=16),
     )
-
 
 def empty_state(
     title: str, subtitle: str, icon: ft.IconData = ft.Icons.INBOX_OUTLINED
