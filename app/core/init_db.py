@@ -1,4 +1,4 @@
-from app.core.database import Database
+from core.database import Database
 
 
 def init_db():

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import flet as ft
-from app.components.ui import empty_state
-from app.ui.theme import AppTheme
-from app.ui.utils import money, parse_int, short_datetime
+from components.ui import empty_state
+from ui.theme import AppTheme
+from ui.utils import money, parse_int, short_datetime
 
 
 class BoletasView(ft.Container):

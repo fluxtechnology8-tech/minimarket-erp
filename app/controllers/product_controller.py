@@ -1,6 +1,6 @@
-from app.models.product import Product
-from app.helpers.get_db import get_db
-from app.schemas.product_schema import ProductCreateSchema
+from models.product import Product
+from helpers.get_db import get_db
+from schemas.product_schema import ProductCreateSchema
 import random
 
 # Funcion temporal

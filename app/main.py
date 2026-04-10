@@ -1,4 +1,4 @@
-from app.ui.application import MinimarketApp
+from ui.application import MinimarketApp
 
 _app = None
 

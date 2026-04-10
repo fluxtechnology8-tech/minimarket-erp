@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import flet as ft
 
-from app.components.ui import StatCard, empty_state, section_card
-from app.ui.theme import AppTheme
-from app.ui.utils import money
+from components.ui import StatCard, empty_state, section_card
+from ui.theme import AppTheme
+from ui.utils import money
 
 
 class ReportesView(ft.Column):

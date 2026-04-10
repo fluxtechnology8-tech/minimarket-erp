@@ -1,5 +1,5 @@
 import flet as ft
-from app.controllers.product_controller import create_product
+from controllers.product_controller import create_product
 
 def home_view(page: ft.Page):
 

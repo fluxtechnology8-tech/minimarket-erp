@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import flet as ft
 
-from app.components.ui import empty_state, section_card
-from app.ui.theme import AppTheme
-from app.ui.utils import money, parse_float, parse_int, short_datetime
+from components.ui import empty_state, section_card
+from ui.theme import AppTheme
+from ui.utils import money, parse_float, parse_int, short_datetime
 
 
 class KardexView(ft.Column):
