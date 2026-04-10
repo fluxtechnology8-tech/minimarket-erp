@@ -40,7 +40,7 @@ class ProductosView(ft.Container):
             ],
             expand=True,
             spacing=20,
-            padding=ft.padding.only(bottom=80),
+            padding=ft.Padding.only(bottom=80),
         )
 
     def _build_header(self) -> ft.Container:
@@ -48,7 +48,7 @@ class ProductosView(ft.Container):
             ft.Container()
             if self.is_mobile
             else ft.Container(
-                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                 bgcolor=AppTheme.PRIMARY,
                 border_radius=24,
                 content=ft.Row(
@@ -129,7 +129,7 @@ class ProductosView(ft.Container):
                             ],
                             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                         ),
-                        margin=ft.margin.only(bottom=16),
+                        margin=ft.Margin.only(bottom=16),
                     ),
                     ft.Container(
                         expand=True,

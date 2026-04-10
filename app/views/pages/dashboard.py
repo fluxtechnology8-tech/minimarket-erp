@@ -66,7 +66,7 @@ class DashboardView(ft.Container):
             ],
             expand=True,
             spacing=24,
-            padding=ft.padding.only(bottom=80),
+            padding=ft.Padding.only(bottom=80),
         )
 
     def _build_header(self) -> ft.Container:
@@ -180,7 +180,7 @@ class DashboardView(ft.Container):
                     ),
                     ft.Container(
                         height=180 if self.is_mobile else 220,
-                        margin=ft.margin.only(top=12, left=4, right=4),
+                        margin=ft.Margin.only(top=12, left=4, right=4),
                         content=chart_row,
                     ),
                 ],
@@ -276,7 +276,7 @@ class DashboardView(ft.Container):
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
-                    ft.Column(items, spacing=12, margin=ft.margin.only(top=16)),
+                    ft.Column(items, spacing=12, margin=ft.Margin.only(top=16)),
                 ],
                 spacing=8,
             ),
@@ -307,8 +307,8 @@ class DashboardView(ft.Container):
                                             max_lines=2,
                                         ),
                                         ft.Container(
-                                            margin=ft.margin.only(top=16),
-                                            padding=ft.padding.symmetric(
+                                            margin=ft.Margin.only(top=16),
+                                            padding=ft.Padding.symmetric(
                                                 horizontal=20, vertical=12
                                             ),
                                             bgcolor=AppTheme.PRIMARY,

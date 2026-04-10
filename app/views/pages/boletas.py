@@ -77,7 +77,7 @@ class BoletasView(ft.Container):
             ],
             expand=True,
             spacing=20,
-            padding=ft.padding.only(bottom=80),
+            padding=ft.Padding.only(bottom=80),
         )
 
     def _build_new_sale_form(self) -> ft.Container:
@@ -150,7 +150,7 @@ class BoletasView(ft.Container):
                             ),
                             ft.Container(expand=True),
                             ft.Container(
-                                padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                                padding=ft.Padding.symmetric(horizontal=12, vertical=6),
                                 bgcolor=AppTheme.SECONDARY_LIGHT,
                                 border_radius=16,
                                 content=ft.Text(

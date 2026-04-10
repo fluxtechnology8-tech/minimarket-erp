@@ -156,7 +156,7 @@ class MinimarketApp:
         self.content_area = ft.Container(
             expand=True,
             content=self.current_view_control,
-            padding=ft.padding.symmetric(
+            padding=ft.Padding.symmetric(
                 horizontal=12 if self.is_mobile else 20,
                 vertical=12 if self.is_mobile else 16,
             ),
@@ -258,7 +258,7 @@ class MinimarketApp:
         self.theme_toggle = theme_btn
 
         header = ft.Container(
-            padding=ft.padding.symmetric(horizontal=20, vertical=10),
+            padding=ft.Padding.symmetric(horizontal=20, vertical=10),
             bgcolor=colors["surface"],
             content=ft.Row(
                 [
@@ -280,7 +280,7 @@ class MinimarketApp:
                     ),
                     ft.Container(expand=True),
                     ft.Container(
-                        padding=ft.padding.symmetric(horizontal=12, vertical=6),
+                        padding=ft.Padding.symmetric(horizontal=12, vertical=6),
                         border_radius=16,
                         bgcolor=colors["surface_low"],
                         content=ft.Text(
@@ -413,4 +413,4 @@ class MinimarketApp:
 
 if __name__ == "__main__":
     app = MinimarketApp()
-    run()
+    ft.run()
