@@ -1,6 +1,10 @@
-from app.core.database import engine, Base
+from app.core.database import Database
 
-from app.models.product import Product
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    db = Database()
+    return db
+
+
+def get_db():
+    return Database()
