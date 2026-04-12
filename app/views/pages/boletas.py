@@ -3,7 +3,7 @@ from __future__ import annotations
 import flet as ft
 from views.components.ui import empty_state
 from views.ui.theme import AppTheme
-from views.ui.utils import money, parse_int, short_datetime
+from views.ui.utils import money, parse_int, parse_float, short_datetime
 
 
 class BoletasView(ft.Container):
@@ -38,6 +38,15 @@ class BoletasView(ft.Container):
             filled=True,
             bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
             border_radius=14,
+        )
+        self.precio_field = ft.TextField(
+            label="Precio unitario",
+            value="0.00",
+            width=120,
+            filled=True,
+            bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
+            border_radius=14,
+            prefix_icon=ft.Icons.ATTACH_MONEY,
         )
         self.cantidad_field = ft.TextField(
             label="Cantidad",
@@ -96,8 +105,27 @@ class BoletasView(ft.Container):
                     ),
                     ft.ResponsiveRow(
                         [
-                            ft.Column([self.product_dropdown], col={"md": 9}),
+                            ft.Column([self.product_dropdown], col={"md": 6}),
+                            ft.Column([self.precio_field], col={"md": 2}),
                             ft.Column([self.cantidad_field], col={"md": 2}),
+                            ft.Column(
+                                [
+                                    ft.Container(
+                                        content=ft.Text(
+                                            "Cargar",
+                                            size=12,
+                                            weight=ft.FontWeight.W_500,
+                                        ),
+                                        padding=ft.Padding.symmetric(
+                                            horizontal=8, vertical=12
+                                        ),
+                                        bgcolor=AppTheme.SURFACE_CONTAINER,
+                                        border_radius=8,
+                                        on_click=self.load_product_price,
+                                    ),
+                                ],
+                                col={"md": 1},
+                            ),
                             ft.Column(
                                 [
                                     ft.Container(
@@ -238,9 +266,18 @@ class BoletasView(ft.Container):
         for producto in self.controller.get_productos_con_stock():
             if int(producto.get("stock") or 0) <= 0:
                 continue
-            label = f"{producto['codigo']} - {producto['nombre']} ({money(float(producto['precio_venta'] or 0))})"
+            label = f"{producto['codigo']} - {producto['nombre']}"
             options.append(ft.dropdown.Option(str(producto["id"]), label))
         return options
+
+    def load_product_price(self, e) -> None:
+        if not self.product_dropdown.value:
+            self.show_message("Seleccione un producto.")
+            return
+        producto = self.controller.get_producto(int(self.product_dropdown.value))
+        if producto:
+            self.precio_field.value = str(float(producto.get("precio_venta") or 0))
+            self.update()
 
     def add_to_cart(self, e) -> None:
         if not self.product_dropdown.value:
@@ -257,6 +294,10 @@ class BoletasView(ft.Container):
         if cantidad > int(producto.get("stock") or 0):
             self.show_message("No hay stock suficiente.")
             return
+        precio = parse_float(self.precio_field.value)
+        if precio < 0:
+            self.show_message("El precio no puede ser negativo.")
+            return
 
         existing = next(
             (item for item in self.carrito if item["producto_id"] == producto["id"]),
@@ -268,13 +309,14 @@ class BoletasView(ft.Container):
                 self.show_message("La cantidad total supera el stock disponible.")
                 return
             existing["cantidad"] = nueva_cantidad
+            existing["precio_unitario"] = precio
         else:
             self.carrito.append(
                 {
                     "producto_id": producto["id"],
                     "nombre": producto["nombre"],
                     "cantidad": cantidad,
-                    "precio_unitario": float(producto.get("precio_venta") or 0),
+                    "precio_unitario": precio,
                 }
             )
         self.refresh_cart()

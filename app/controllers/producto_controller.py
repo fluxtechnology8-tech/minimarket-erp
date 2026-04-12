@@ -14,8 +14,18 @@ class ProductoController:
     def create(self, data: dict) -> dict:
         return self.service.create(data)
 
-    def create_with_stock_inicial(self, data: dict, cantidad_inicial: int = 0, precio_compra: float = 0) -> dict:
-        return self.service.create_with_stock_inicial(data, cantidad_inicial, precio_compra)
+    def create_with_stock_inicial(
+        self, data: dict, cantidad_inicial: int = 0, precio_compra: float = 0
+    ) -> dict:
+        return self.service.create_with_stock_inicial(
+            data, cantidad_inicial, precio_compra
+        )
+
+    def update(self, producto_id: int, data: dict) -> dict:
+        return self.service.update(producto_id, data)
+
+    def delete(self, producto_id: int) -> bool:
+        return self.service.delete(producto_id)
 
     def search(self, query: str) -> list[dict]:
         return self.service.search(query)

@@ -3,6 +3,7 @@ certifi==2026.2.25
 charset-normalizer==3.4.7
 et_xmlfile==2.0.0
 flet==0.84.0
+flet-datatable2==0.1.8
 greenlet==3.4.0
 h11==0.16.0
 httpcore==1.0.9

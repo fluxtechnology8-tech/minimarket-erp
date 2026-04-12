@@ -3,7 +3,11 @@ from repositories.kardex_repository import KardexRepository
 
 
 class ProductoService:
-    def __init__(self, producto_repo: ProductoRepository = None, kardex_repo: KardexRepository = None):
+    def __init__(
+        self,
+        producto_repo: ProductoRepository = None,
+        kardex_repo: KardexRepository = None,
+    ):
         self.producto_repo = producto_repo or ProductoRepository()
         self.kardex_repo = kardex_repo or KardexRepository()
 
@@ -33,21 +37,25 @@ class ProductoService:
         producto_id = self.producto_repo.create(data)
         return {"success": True, "id": producto_id}
 
-    def create_with_stock_inicial(self, data: dict, cantidad_inicial: int, precio_compra: float) -> dict:
+    def create_with_stock_inicial(
+        self, data: dict, cantidad_inicial: int, precio_compra: float
+    ) -> dict:
         result = self.create(data)
         producto_id = result["id"]
 
         if cantidad_inicial > 0:
-            self.kardex_repo.create({
-                "producto_id": producto_id,
-                "tipo": "ENTRADA",
-                "cantidad": cantidad_inicial,
-                "precio_unitario": precio_compra,
-                "total": cantidad_inicial * precio_compra,
-                "motivo": "Stock inicial",
-                "documento_ref": "ALTA",
-                "saldo_stock": cantidad_inicial,
-            })
+            self.kardex_repo.create(
+                {
+                    "producto_id": producto_id,
+                    "tipo": "ENTRADA",
+                    "cantidad": cantidad_inicial,
+                    "precio_unitario": precio_compra,
+                    "total": cantidad_inicial * precio_compra,
+                    "motivo": "Stock inicial",
+                    "documento_ref": "ALTA",
+                    "saldo_stock": cantidad_inicial,
+                }
+            )
             self.producto_repo.update_stock(producto_id, cantidad_inicial)
 
         return result
@@ -58,8 +66,15 @@ class ProductoService:
         if not query_lower:
             return productos
         return [
-            p for p in productos
+            p
+            for p in productos
             if query_lower in str(p.get("codigo", "")).lower()
             or query_lower in str(p.get("nombre", "")).lower()
             or query_lower in str(p.get("categoria", "")).lower()
         ]
+
+    def update(self, producto_id: int, data: dict) -> dict:
+        return self.producto_repo.update(producto_id, data)
+
+    def delete(self, producto_id: int) -> bool:
+        return self.producto_repo.delete(producto_id)

@@ -78,7 +78,10 @@ class MinimarketApp:
         self.mobile_destinations = [0, 1, 2, 4, 6]
 
     def run(self) -> None:
-        ft.run(self.main, assets_dir="assets")
+        import os
+
+        assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+        ft.run(self.main, assets_dir=assets_path)
 
     def main(self, page: ft.Page) -> None:
         self.page = page
@@ -401,11 +404,15 @@ class MinimarketApp:
         is_mobile = self.is_mobile
         views = {
             0: DashboardView(self.reporte_controller, is_mobile),
-            1: ProductosView(self.page, self.producto_controller, self.kardex_controller, is_mobile),
-            2: KardexView(self.page, self.kardex_controller, self.producto_controller, is_mobile),
+            1: ProductosView(
+                self.page, self.producto_controller, self.kardex_controller, is_mobile
+            ),
+            2: KardexView(
+                self.page, self.kardex_controller, self.producto_controller, is_mobile
+            ),
             3: BoletasView(self.page, self.venta_controller),
             4: GastosView(self.page, self.gasto_controller, is_mobile),
-            5: ReportesView(self.reporte_controller),
+            5: ReportesView(self.page, self.reporte_controller),
             6: SyncView(self.page, self.sync_controller, is_mobile),
         }
         return views.get(index, DashboardView(self.reporte_controller, is_mobile))
