@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import flet as ft
-from views.components.ui import empty_state
-from views.ui.theme import AppTheme
+from views.components.ui import empty_state, card, app_input, primary_btn, badge
+from views.ui.theme import AppTheme, shadow
 from views.ui.utils import money, parse_int, parse_float, short_datetime
 
 
@@ -20,41 +20,25 @@ class BoletasView(ft.Container):
         self.build_view()
 
     def build_view(self) -> None:
-        self.cliente_nombre = ft.TextField(
-            label="Nombre / razón social",
-            filled=True,
-            bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
-            border_radius=14,
-        )
-        self.cliente_documento = ft.TextField(
-            label="DNI / RUC",
-            filled=True,
-            bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
-            border_radius=14,
-        )
+        self.cliente_nombre = app_input("Nombre / razón social")
+        self.cliente_documento = app_input("DNI / RUC")
         self.product_dropdown = ft.Dropdown(
             label="Producto",
             options=self._product_options(),
+            border_radius=AppTheme.R_MD,
+            border_color=AppTheme.INPUT_BORDER,
+            focused_border_color=AppTheme.INPUT_FOCUSED,
+            fill_color=AppTheme.INPUT_BG,
             filled=True,
-            bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
-            border_radius=14,
         )
-        self.precio_field = ft.TextField(
-            label="Precio unitario",
+        self.precio_field = app_input(
+            "Precio unitario",
             value="0.00",
             width=120,
-            filled=True,
-            bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
-            border_radius=14,
-            prefix_icon=ft.Icons.ATTACH_MONEY,
+            keyboard_type=ft.KeyboardType.NUMBER,
         )
-        self.cantidad_field = ft.TextField(
-            label="Cantidad",
-            value="1",
-            width=100,
-            filled=True,
-            bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
-            border_radius=14,
+        self.cantidad_field = app_input(
+            "Cantidad", value="1", width=100, keyboard_type=ft.KeyboardType.NUMBER
         )
 
         self.refresh_cart()
@@ -62,39 +46,39 @@ class BoletasView(ft.Container):
 
         self.content = ft.ListView(
             [
-                ft.Container(
-                    content=ft.Column(
-                        [
-                            ft.Text(
-                                "Nueva venta",
-                                size=24,
-                                weight=ft.FontWeight.BOLD,
-                                color=AppTheme.TEXT_PRIMARY,
-                            ),
-                            ft.Text(
-                                "Registra una nueva transacción",
-                                size=13,
-                                color=AppTheme.TEXT_SECONDARY,
-                            ),
-                        ],
-                        tight=True,
-                    ),
-                ),
+                self._build_header(),
                 self._build_new_sale_form(),
                 self._build_cart_section(),
                 self._build_recent_sales(),
             ],
             expand=True,
             spacing=20,
-            padding=ft.Padding.only(bottom=80),
+            padding=24,
+        )
+
+    def _build_header(self) -> ft.Container:
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Text(
+                        "Nueva Venta",
+                        size=20,
+                        weight=ft.FontWeight.BOLD,
+                        color=AppTheme.TEXT_PRIMARY,
+                    ),
+                    ft.Text(
+                        "Registra una nueva transacción",
+                        size=13,
+                        color=AppTheme.TEXT_MUTED,
+                    ),
+                ],
+                tight=True,
+            ),
         )
 
     def _build_new_sale_form(self) -> ft.Container:
-        return ft.Container(
-            padding=20,
-            border_radius=24,
-            bgcolor=AppTheme.SURFACE_CONTAINER_LOW,
-            content=ft.Column(
+        return card(
+            ft.Column(
                 [
                     ft.ResponsiveRow(
                         [
@@ -119,8 +103,8 @@ class BoletasView(ft.Container):
                                         padding=ft.Padding.symmetric(
                                             horizontal=8, vertical=12
                                         ),
-                                        bgcolor=AppTheme.SURFACE_CONTAINER,
-                                        border_radius=8,
+                                        bgcolor=AppTheme.INPUT_BG,
+                                        border_radius=AppTheme.R_MD,
                                         on_click=self.load_product_price,
                                     ),
                                 ],
@@ -131,7 +115,7 @@ class BoletasView(ft.Container):
                                     ft.Container(
                                         padding=12,
                                         bgcolor=AppTheme.PRIMARY,
-                                        border_radius=24,
+                                        border_radius=AppTheme.R_PILL,
                                         content=ft.Row(
                                             [
                                                 ft.Icon(
@@ -162,11 +146,8 @@ class BoletasView(ft.Container):
         )
 
     def _build_cart_section(self) -> ft.Container:
-        return ft.Container(
-            padding=20,
-            border_radius=24,
-            bgcolor=AppTheme.SURFACE_CONTAINER_LOW,
-            content=ft.Column(
+        return card(
+            ft.Column(
                 [
                     ft.Row(
                         [
@@ -179,8 +160,8 @@ class BoletasView(ft.Container):
                             ft.Container(expand=True),
                             ft.Container(
                                 padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-                                bgcolor=AppTheme.SECONDARY_LIGHT,
-                                border_radius=16,
+                                bgcolor=AppTheme.PRIMARY_LIGHT,
+                                border_radius=AppTheme.R_PILL,
                                 content=ft.Text(
                                     f"{len(self.carrito)} items",
                                     size=12,
@@ -193,15 +174,15 @@ class BoletasView(ft.Container):
                     ft.Container(height=200, content=self.cart_list),
                     ft.Container(
                         padding=16,
-                        border_radius=16,
-                        bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
+                        border_radius=AppTheme.R_MD,
+                        bgcolor=AppTheme.INPUT_BG,
                         content=ft.Row(
                             [
                                 ft.Text(
                                     "TOTAL",
                                     size=14,
                                     weight=ft.FontWeight.W_500,
-                                    color=AppTheme.TEXT_SECONDARY,
+                                    color=AppTheme.TEXT_MUTED,
                                 ),
                                 ft.Container(expand=True),
                                 self.total_text,
@@ -211,7 +192,7 @@ class BoletasView(ft.Container):
                     ft.Container(
                         padding=14,
                         bgcolor=AppTheme.PRIMARY,
-                        border_radius=24,
+                        border_radius=AppTheme.R_PILL,
                         content=ft.Row(
                             [
                                 ft.Icon(
@@ -237,11 +218,8 @@ class BoletasView(ft.Container):
         )
 
     def _build_recent_sales(self) -> ft.Container:
-        return ft.Container(
-            padding=20,
-            border_radius=24,
-            bgcolor=AppTheme.SURFACE_CONTAINER_LOW,
-            content=ft.Column(
+        return card(
+            ft.Column(
                 [
                     ft.Row(
                         [
@@ -338,18 +316,18 @@ class BoletasView(ft.Container):
             rows.append(
                 ft.Container(
                     padding=12,
-                    border_radius=12,
-                    bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
+                    border_radius=AppTheme.R_MD,
+                    bgcolor=AppTheme.INPUT_BG,
                     content=ft.Row(
                         [
                             ft.Container(
                                 width=40,
                                 height=40,
-                                border_radius=10,
-                                bgcolor=AppTheme.SURFACE_CONTAINER,
+                                border_radius=AppTheme.R_MD,
+                                bgcolor=AppTheme.PRIMARY_LIGHT,
                                 content=ft.Icon(
                                     ft.Icons.SHOPPING_BAG,
-                                    color=AppTheme.PRIMARY_CONTAINER,
+                                    color=AppTheme.PRIMARY,
                                     size=20,
                                 ),
                             ),
@@ -364,7 +342,7 @@ class BoletasView(ft.Container):
                                     ft.Text(
                                         f"Cant: {item['cantidad']} x {money(item['precio_unitario'])}",
                                         size=11,
-                                        color=AppTheme.TEXT_SECONDARY,
+                                        color=AppTheme.TEXT_MUTED,
                                     ),
                                 ],
                                 expand=True,
@@ -410,8 +388,8 @@ class BoletasView(ft.Container):
             controls.append(
                 ft.Container(
                     padding=12,
-                    border_radius=12,
-                    bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
+                    border_radius=AppTheme.R_MD,
+                    bgcolor=AppTheme.INPUT_BG,
                     content=ft.Column(
                         [
                             ft.Row(
@@ -433,7 +411,7 @@ class BoletasView(ft.Container):
                             ft.Text(
                                 f"{venta.get('cliente_nombre') or 'Cliente'} | {short_datetime(venta.get('fecha'))}",
                                 size=11,
-                                color=AppTheme.TEXT_SECONDARY,
+                                color=AppTheme.TEXT_MUTED,
                             ),
                         ],
                         tight=True,

@@ -3,8 +3,15 @@ from __future__ import annotations
 import flet as ft
 import asyncio
 import base64
-from views.components.ui import empty_state
-from views.ui.theme import AppTheme
+from views.components.ui import (
+    empty_state,
+    card,
+    searchbar,
+    app_dropdown,
+    primary_btn,
+    badge,
+)
+from views.ui.theme import AppTheme, shadow
 from views.ui.utils import money, parse_float, parse_int
 
 
@@ -29,11 +36,11 @@ class ProductosView(ft.Container):
             max_extent=200 if is_mobile else 220,
         )
         self.search_field = ft.TextField(
-            prefix_icon=ft.Icons.SEARCH,
+            prefix_icon=ft.Icons.SEARCH_ROUNDED,
             hint_text="Buscar por nombre, código o categoría",
             filled=True,
-            bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
-            border_radius=18,
+            bgcolor=AppTheme.INPUT_BG,
+            border_radius=AppTheme.R_PILL,
             on_change=self.on_search_change,
         )
         self.build_view()
@@ -43,9 +50,12 @@ class ProductosView(ft.Container):
         """Convierte bytes a data URI en base64 para compatibilidad web/desktop."""
         ext = filename.rsplit(".", 1)[-1].lower()
         mime = {
-            "jpg": "image/jpeg", "jpeg": "image/jpeg",
-            "png": "image/png", "gif": "image/gif",
-            "webp": "image/webp", "bmp": "image/bmp",
+            "jpg": "image/jpeg",
+            "jpeg": "image/jpeg",
+            "png": "image/png",
+            "gif": "image/gif",
+            "webp": "image/webp",
+            "bmp": "image/bmp",
         }.get(ext, "image/png")
         b64 = base64.b64encode(data).decode("utf-8")
         return f"data:{mime};base64,{b64}"
@@ -55,12 +65,13 @@ class ProductosView(ft.Container):
         self.content = ft.ListView(
             [
                 self._build_header(),
+                self._build_stats(),
                 self._build_search(),
                 self._build_product_grid(),
             ],
             expand=True,
-            spacing=20,
-            padding=ft.Padding.only(bottom=80),
+            spacing=14,
+            padding=24,
         )
 
     def _build_header(self) -> ft.Container:
@@ -68,94 +79,117 @@ class ProductosView(ft.Container):
             ft.Container()
             if self.is_mobile
             else ft.Container(
-                padding=ft.Padding.symmetric(horizontal=20, vertical=12),
-                bgcolor=AppTheme.PRIMARY,
-                border_radius=24,
                 content=ft.Row(
                     [
-                        ft.Icon(ft.Icons.ADD, color=ft.Colors.WHITE, size=20),
+                        ft.Icon(ft.Icons.ADD_ROUNDED, color="#FFFFFF", size=15),
                         ft.Text(
-                            "Nuevo producto",
-                            size=14,
+                            "Nuevo Producto",
+                            size=12,
                             weight=ft.FontWeight.W_600,
-                            color=ft.Colors.WHITE,
+                            color="#FFFFFF",
                         ),
                     ],
-                    spacing=8,
+                    spacing=6,
                 ),
+                bgcolor=AppTheme.PRIMARY,
+                border_radius=AppTheme.R_PILL,
+                padding=ft.padding.symmetric(horizontal=16, vertical=10),
                 on_click=self.open_form,
             )
         )
-        return ft.Container(
-            content=ft.Row(
-                [
-                    ft.Column(
-                        [
-                            ft.Text(
-                                "Catálogo de Productos",
-                                size=24,
-                                weight=ft.FontWeight.BOLD,
-                                color=AppTheme.TEXT_PRIMARY,
-                            ),
-                            ft.Text(
-                                "Gestión integral de suministros"
-                                if not self.is_mobile
-                                else "Solo visualización",
-                                size=13,
-                                color=AppTheme.TEXT_SECONDARY,
-                            ),
-                        ],
-                        tight=True,
-                    ),
-                    ft.Container(expand=True),
-                    action_button,
-                ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            ),
+        return ft.Row(
+            [
+                ft.Column(
+                    [
+                        ft.Text(
+                            "Catálogo de Productos",
+                            size=20,
+                            weight=ft.FontWeight.BOLD,
+                            color=AppTheme.TEXT_PRIMARY,
+                        ),
+                        ft.Text(
+                            "Gestión de inventario y precios",
+                            size=13,
+                            color=AppTheme.TEXT_MUTED,
+                        ),
+                    ],
+                    tight=True,
+                ),
+                ft.Container(expand=True),
+                action_button,
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        )
+
+    def _build_stats(self) -> ft.Container:
+        productos = self.producto_controller.get_all()
+        total = len(productos)
+        con_stock = sum(1 for p in productos if int(p.get("stock") or 0) > 0)
+        agotados = sum(1 for p in productos if int(p.get("stock") or 0) <= 0)
+
+        def stat_box(value, label, bg):
+            return ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(
+                            value,
+                            size=20,
+                            weight=ft.FontWeight.BOLD,
+                            color=AppTheme.TEXT_PRIMARY,
+                        ),
+                        ft.Text(label, size=11, color=AppTheme.TEXT_MUTED),
+                    ],
+                    spacing=2,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                bgcolor=bg,
+                border=ft.Border.all(0.5, AppTheme.CARD_BORDER),
+                border_radius=AppTheme.R_MD,
+                padding=ft.padding.symmetric(horizontal=20, vertical=10),
+            )
+
+        return ft.Row(
+            [
+                stat_box(str(total), "Total", AppTheme.INPUT_BG),
+                stat_box(str(con_stock), "Con stock", AppTheme.SUCCESS_LT),
+                stat_box(str(agotados), "Agotados", AppTheme.DANGER_LT),
+            ],
+            spacing=10,
         )
 
     def _build_search(self) -> ft.Container:
-        search_width = 280 if self.is_mobile else 400
         return ft.Container(
-            width=search_width,
-            content=self.search_field,
+            content=searchbar(
+                "Buscar por nombre, SKU o categoría...", on_change=self.on_search_change
+            ),
+            width=400,
         )
 
     def _build_product_grid(self) -> ft.Container:
-        return ft.Container(
-            expand=True,
-            content=ft.Column(
+        return card(
+            ft.Column(
                 [
-                    ft.Container(
-                        content=ft.Row(
-                            [
-                                ft.Text(
-                                    "Todos los productos",
-                                    size=16,
-                                    weight=ft.FontWeight.W_600,
-                                    color=AppTheme.TEXT_PRIMARY,
-                                ),
-                                ft.Container(expand=True),
-                                ft.Text(
-                                    "Ordenar: Más recientes",
-                                    size=12,
-                                    color=AppTheme.TEXT_SECONDARY,
-                                ),
-                                ft.Icon(
-                                    ft.Icons.EXPAND_MORE,
-                                    size=16,
-                                    color=AppTheme.TEXT_SECONDARY,
-                                ),
-                            ],
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        ),
-                        margin=ft.Margin.only(bottom=16),
+                    ft.Row(
+                        [
+                            ft.Text(
+                                "Todos los productos",
+                                size=14,
+                                weight=ft.FontWeight.BOLD,
+                                color=AppTheme.TEXT_PRIMARY,
+                            ),
+                            ft.Container(expand=True),
+                            app_dropdown(
+                                "Ordenar",
+                                "Más recientes",
+                                ["Más recientes", "Nombre A-Z", "Precio menor"],
+                                width=160,
+                            ),
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    ft.Container(
-                        expand=True,
-                        content=self.list_view,
-                    ),
-                ]
+                    ft.Container(height=14),
+                    ft.Container(expand=True, content=self.list_view),
+                ],
             ),
         )
 
@@ -190,7 +224,6 @@ class ProductosView(ft.Container):
                         "No hay productos para mostrar",
                         "Agrega el primer producto o ajusta la búsqueda.",
                     ),
-                    col={"sm": 12},
                 )
             ]
             return
@@ -206,16 +239,32 @@ class ProductosView(ft.Container):
                 if stock > 0
                 else AppTheme.DANGER
             )
+            stock_text = f"{stock} en stock" if stock > 0 else "Agotado"
+            stock_bg = (
+                AppTheme.SUCCESS_LT
+                if stock > minimo
+                else AppTheme.WARNING_LT
+                if stock > 0
+                else AppTheme.DANGER_LT
+            )
 
-            cards.append(self._build_product_card(producto, stock, stock_color))
+            cards.append(
+                self._build_product_card(
+                    producto, stock, stock_color, stock_text, stock_bg
+                )
+            )
 
         self.list_view.controls = cards
 
     def _build_product_card(
-        self, producto: dict, stock: int, stock_color: str
+        self,
+        producto: dict,
+        stock: int,
+        stock_color: str,
+        stock_text: str,
+        stock_bg: str,
     ) -> ft.Container:
         precio = producto.get("precio_venta") or 0
-        imagen = producto.get("imagen")
 
         def on_edit(e):
             self.open_edit_form(producto)
@@ -223,110 +272,103 @@ class ProductosView(ft.Container):
         def on_delete(e):
             self._show_delete_confirmation(producto)
 
-        imagen_content = (
-            ft.Image(
-                src=imagen,
-                fit=ft.BoxFit.COVER,
-                width=100,
-                height=100,
-                border_radius=ft.BorderRadius(10, 10, 0, 0),
-                error_content=ft.Icon(
-                    ft.Icons.INVENTORY_2_ROUNDED,
-                    size=40,
-                    color=AppTheme.TEXT_SECONDARY,
-                ),
-            )
-            if imagen
-            else ft.Icon(
-                ft.Icons.INVENTORY_2_ROUNDED,
-                size=40,
-                color=AppTheme.TEXT_SECONDARY,
-            )
-        )
-
         return ft.Container(
-            padding=16,
-            border_radius=20,
-            bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
             content=ft.Column(
                 [
                     ft.Container(
-                        height=100,
-                        bgcolor=AppTheme.SURFACE_CONTAINER,
-                        border_radius=12,
-                        content=imagen_content,
+                        height=90,
+                        bgcolor=AppTheme.PRIMARY_LIGHT,
+                        border_radius=AppTheme.R_MD,
+                        content=ft.Stack(
+                            controls=[
+                                ft.Container(
+                                    content=ft.Icon(
+                                        ft.Icons.INVENTORY_2_OUTLINED,
+                                        size=40,
+                                        color=AppTheme.PRIMARY,
+                                    ),
+                                    alignment=ft.Alignment(0, 0),
+                                    height=90,
+                                ),
+                            ],
+                        ),
                     ),
-                    ft.Column(
-                        [
-                            ft.Text(
-                                producto["nombre"],
-                                size=14,
-                                weight=ft.FontWeight.W_600,
-                                color=AppTheme.TEXT_PRIMARY,
-                                max_lines=2,
-                            ),
-                            ft.Text(
-                                f"SKU: {producto['codigo']}",
-                                size=11,
-                                color=AppTheme.TEXT_SECONDARY,
-                            ),
-                            ft.Text(
-                                money(float(precio))
-                                if precio and float(precio) > 0
-                                else "Sin precio",
-                                size=14,
-                                weight=ft.FontWeight.BOLD
-                                if precio and float(precio) > 0
-                                else ft.FontWeight.W_400,
-                                color=AppTheme.PRIMARY
-                                if precio and float(precio) > 0
-                                else AppTheme.TEXT_SECONDARY,
-                            ),
-                            ft.Row(
-                                [
-                                    ft.Container(
-                                        width=8,
-                                        height=8,
-                                        border_radius=4,
-                                        bgcolor=stock_color,
-                                    ),
-                                    ft.Text(
-                                        f"{stock} en stock",
-                                        size=12,
-                                        color=stock_color,
-                                        weight=ft.FontWeight.W_500,
-                                    ),
-                                ]
-                            ),
-                            ft.Row(
-                                [
-                                    ft.Container(
-                                        content=ft.IconButton(
-                                            icon=ft.Icons.EDIT,
-                                            icon_color=AppTheme.PRIMARY,
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Text(
+                                    producto["nombre"],
+                                    size=13,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=AppTheme.TEXT_PRIMARY,
+                                    max_lines=2,
+                                ),
+                                ft.Text(
+                                    f"SKU: {producto['codigo']}",
+                                    size=11,
+                                    color=AppTheme.TEXT_MUTED,
+                                ),
+                                ft.Container(height=4),
+                                ft.Row(
+                                    [
+                                        ft.Text(
+                                            money(float(precio))
+                                            if precio and float(precio) > 0
+                                            else "Sin precio",
+                                            size=18,
+                                            weight=ft.FontWeight.BOLD
+                                            if precio and float(precio) > 0
+                                            else ft.FontWeight.W_400,
+                                            color=AppTheme.PRIMARY
+                                            if precio and float(precio) > 0
+                                            else AppTheme.TEXT_MUTED,
+                                        ),
+                                        ft.Container(expand=True),
+                                        badge(stock_text, stock_color, stock_bg),
+                                    ],
+                                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                ),
+                                ft.Container(height=8),
+                                ft.Row(
+                                    [
+                                        primary_btn(
+                                            "Editar",
+                                            ft.Icons.EDIT_ROUNDED,
+                                            "ghost",
                                             on_click=on_edit,
-                                            tooltip="Editar",
                                         ),
-                                        padding=5,
-                                    ),
-                                    ft.Container(
-                                        content=ft.IconButton(
-                                            icon=ft.Icons.DELETE,
-                                            icon_color=AppTheme.DANGER,
+                                        ft.Container(
+                                            content=ft.Icon(
+                                                ft.Icons.MORE_VERT_ROUNDED,
+                                                color=AppTheme.TEXT_MUTED,
+                                                size=16,
+                                            ),
+                                            width=32,
+                                            height=32,
+                                            bgcolor=AppTheme.INPUT_BG,
+                                            border=ft.Border.all(
+                                                0.5, AppTheme.CARD_BORDER
+                                            ),
+                                            border_radius=AppTheme.R_MD,
+                                            alignment=ft.Alignment(0, 0),
                                             on_click=on_delete,
-                                            tooltip="Eliminar",
                                         ),
-                                        padding=5,
-                                    ),
-                                ],
-                                spacing=0,
-                            ),
-                        ],
-                        spacing=4,
+                                    ],
+                                ),
+                            ],
+                            spacing=3,
+                        ),
+                        padding=12,
                     ),
                 ],
-                spacing=8,
+                spacing=0,
             ),
+            bgcolor=AppTheme.CARD_BG,
+            border_radius=AppTheme.R_LG,
+            border=ft.Border.all(0.5, AppTheme.CARD_BORDER),
+            shadow=shadow(AppTheme.PRIMARY, 6, 2),
+            expand=1,
+            ink=True,
         )
 
     def open_form(self, e) -> None:
@@ -341,9 +383,9 @@ class ProductosView(ft.Container):
         imagen_preview = ft.Container(
             width=100,
             height=100,
-            border_radius=12,
-            bgcolor=AppTheme.SURFACE_CONTAINER,
-            content=ft.Icon(ft.Icons.IMAGE, size=40, color=AppTheme.TEXT_SECONDARY),
+            border_radius=AppTheme.R_MD,
+            bgcolor=AppTheme.INPUT_BG,
+            content=ft.Icon(ft.Icons.IMAGE, size=40, color=AppTheme.TEXT_MUTED),
         )
 
         imagen_path = {"src": None, "name": None}
@@ -351,7 +393,6 @@ class ProductosView(ft.Container):
 
         async def seleccionar_imagen(e_):
             try:
-                # ✅ Nuevo patrón Flet 0.84: instanciar FilePicker en el await
                 files = await ft.FilePicker().pick_files(
                     file_type=ft.FilePickerFileType.IMAGE,
                     allow_multiple=False,
@@ -364,7 +405,6 @@ class ProductosView(ft.Container):
                 archivo = files[0]
                 data_uri = None
 
-                # Intentar obtener data_uri de bytes (web) o path (desktop)
                 if archivo.bytes:
                     data_uri = self._bytes_to_src(archivo.bytes, archivo.name)
                 elif archivo.path:
@@ -374,14 +414,12 @@ class ProductosView(ft.Container):
                 if data_uri:
                     imagen_path["src"] = data_uri
                     imagen_path["name"] = archivo.name
-
-                    # Actualizar preview
                     imagen_preview.content = ft.Image(
                         src=data_uri,
                         width=100,
                         height=100,
                         fit=ft.BoxFit.COVER,
-                        border_radius=ft.BorderRadius(8, 8, 8, 8),
+                        border_radius=AppTheme.R_MD,
                     )
                     error_text.visible = False
                 else:
@@ -439,17 +477,9 @@ class ProductosView(ft.Container):
                                     [imagen_preview],
                                     alignment=ft.CrossAxisAlignment.CENTER,
                                 ),
-                                ft.Column(
-                                    [
-                                        codigo,
-                                        nombre,
-                                        categoria,
-                                    ],
-                                    expand=True,
-                                ),
+                                ft.Column([codigo, nombre, categoria], expand=True),
                             ],
                             spacing=16,
-                            run_spacing=16,
                         ),
                         unidad,
                         descripcion,
@@ -488,12 +518,12 @@ class ProductosView(ft.Container):
         )
 
         imagen_path = {"src": producto.get("imagen"), "name": None}
-        
+
         imagen_preview = ft.Container(
             width=100,
             height=100,
-            border_radius=12,
-            bgcolor=AppTheme.SURFACE_CONTAINER,
+            border_radius=AppTheme.R_MD,
+            bgcolor=AppTheme.INPUT_BG,
         )
 
         if producto.get("imagen"):
@@ -502,18 +532,17 @@ class ProductosView(ft.Container):
                 fit=ft.BoxFit.COVER,
                 width=100,
                 height=100,
-                border_radius=ft.BorderRadius(8, 8, 8, 8),
+                border_radius=AppTheme.R_MD,
             )
         else:
             imagen_preview.content = ft.Icon(
-                ft.Icons.IMAGE, size=40, color=AppTheme.TEXT_SECONDARY
+                ft.Icons.IMAGE, size=40, color=AppTheme.TEXT_MUTED
             )
 
         error_text = ft.Text("", color=AppTheme.DANGER, visible=False)
 
         async def seleccionar_imagen(e_):
             try:
-                # ✅ Nuevo patrón Flet 0.84: instanciar FilePicker en el await
                 files = await ft.FilePicker().pick_files(
                     file_type=ft.FilePickerFileType.IMAGE,
                     allow_multiple=False,
@@ -526,7 +555,6 @@ class ProductosView(ft.Container):
                 archivo = files[0]
                 data_uri = None
 
-                # Intentar obtener data_uri de bytes (web) o path (desktop)
                 if archivo.bytes:
                     data_uri = self._bytes_to_src(archivo.bytes, archivo.name)
                 elif archivo.path:
@@ -536,14 +564,12 @@ class ProductosView(ft.Container):
                 if data_uri:
                     imagen_path["src"] = data_uri
                     imagen_path["name"] = archivo.name
-
-                    # Actualizar preview
                     imagen_preview.content = ft.Image(
                         src=data_uri,
                         width=100,
                         height=100,
                         fit=ft.BoxFit.COVER,
-                        border_radius=ft.BorderRadius(8, 8, 8, 8),
+                        border_radius=AppTheme.R_MD,
                     )
                     error_text.visible = False
                 else:
@@ -597,17 +623,9 @@ class ProductosView(ft.Container):
                                     [imagen_preview],
                                     alignment=ft.CrossAxisAlignment.CENTER,
                                 ),
-                                ft.Column(
-                                    [
-                                        codigo,
-                                        nombre,
-                                        categoria,
-                                    ],
-                                    expand=True,
-                                ),
+                                ft.Column([codigo, nombre, categoria], expand=True),
                             ],
                             spacing=16,
-                            run_spacing=16,
                         ),
                         unidad,
                         descripcion,

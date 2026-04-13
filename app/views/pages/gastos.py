@@ -2,8 +2,15 @@ from __future__ import annotations
 
 import flet as ft
 
-from views.components.ui import empty_state, section_card
-from views.ui.theme import AppTheme
+from views.components.ui import (
+    empty_state,
+    section_card,
+    card,
+    app_input,
+    searchbar,
+    primary_btn,
+)
+from views.ui.theme import AppTheme, shadow
 from views.ui.utils import money, parse_float, short_datetime
 
 
@@ -13,7 +20,7 @@ class GastosView(ft.Column):
         self._page = page
         self.controller = controller
         self.is_mobile = is_mobile
-        self.padding = 20
+        self.padding = 24
         self.search_text = ""
         self.filter_categoria = "TODOS"
         self.gastos_container = ft.Column(spacing=10)
@@ -23,11 +30,11 @@ class GastosView(ft.Column):
         self.refresh_gastos()
 
         self.search_field = ft.TextField(
-            prefix_icon=ft.Icons.SEARCH,
+            prefix_icon=ft.Icons.SEARCH_ROUNDED,
             hint_text="Buscar por concepto",
             filled=True,
-            bgcolor=AppTheme.SURFACE_CONTAINER_LOWEST,
-            border_radius=18,
+            bgcolor=AppTheme.INPUT_BG,
+            border_radius=AppTheme.R_PILL,
             on_change=self.on_search_change,
             width=250 if not self.is_mobile else 180,
         )
@@ -48,13 +55,28 @@ class GastosView(ft.Column):
                 section_card(
                     "Registrar gasto",
                     [
-                        ft.FilledButton(
-                            "Registrar gasto",
-                            icon=ft.Icons.ADD,
+                        ft.Container(
+                            content=ft.Row(
+                                [
+                                    ft.Icon(
+                                        ft.Icons.ADD_ROUNDED, color="#FFFFFF", size=15
+                                    ),
+                                    ft.Text(
+                                        "Registrar gasto",
+                                        size=12,
+                                        weight=ft.FontWeight.W_600,
+                                        color="#FFFFFF",
+                                    ),
+                                ],
+                                spacing=6,
+                            ),
+                            bgcolor=AppTheme.PRIMARY,
+                            border_radius=AppTheme.R_PILL,
+                            padding=ft.padding.symmetric(horizontal=16, vertical=10),
                             on_click=self.open_form,
                         ),
                     ],
-                    "Control basico de egresos del negocio.",
+                    "Control básico de egresos del negocio.",
                 ),
                 section_card(
                     "Lista de gastos",
@@ -84,10 +106,10 @@ class GastosView(ft.Column):
             ft.Container(
                 content=ft.Text("Todos", size=12),
                 padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-                border_radius=16,
+                border_radius=AppTheme.R_PILL,
                 bgcolor=AppTheme.PRIMARY
                 if self.filter_categoria == "TODOS"
-                else AppTheme.SURFACE_CONTAINER_LOW,
+                else AppTheme.INPUT_BG,
                 on_click=lambda _: self._set_filter("TODOS"),
             )
         ]
@@ -96,10 +118,10 @@ class GastosView(ft.Column):
                 ft.Container(
                     content=ft.Text(c[:15], size=12),
                     padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-                    border_radius=16,
+                    border_radius=AppTheme.R_PILL,
                     bgcolor=AppTheme.PRIMARY
                     if self.filter_categoria == c
-                    else AppTheme.SURFACE_CONTAINER_LOW,
+                    else AppTheme.INPUT_BG,
                     on_click=lambda _, cat=c: self._set_filter(cat),
                 )
             )
@@ -124,30 +146,31 @@ class GastosView(ft.Column):
         self.refresh_gastos()
         self.update()
 
-    def on_filter_change(self, e) -> None:
-        self.filter_categoria = e.control.value
-        self.refresh_gastos()
-        self.update()
-
     def get_filtered_gastos(self) -> list[dict]:
         gastos = self.controller.get_all(limit=100)
-
         if self.filter_categoria != "TODOS":
             gastos = [g for g in gastos if g.get("categoria") == self.filter_categoria]
-
         if not self.search_text:
             return gastos
-
         return [
             g for g in gastos if self.search_text in str(g.get("concepto", "")).lower()
         ]
 
     def open_form(self, e) -> None:
-        concepto = ft.TextField(label="Concepto", expand=True, autofocus=True)
-        monto = ft.TextField(label="Monto", value="0")
-        categoria = ft.TextField(label="Categoria")
+        concepto = app_input("Concepto", expand=True)
+        monto = app_input("Monto", value="0")
+        categoria = app_input("Categoria")
         observaciones = ft.TextField(
-            label="Observaciones", multiline=True, min_lines=2, max_lines=4
+            label="Observaciones",
+            multiline=True,
+            min_lines=2,
+            max_lines=4,
+            border_radius=AppTheme.R_MD,
+            border_color=AppTheme.INPUT_BORDER,
+            focused_border_color=AppTheme.INPUT_FOCUSED,
+            fill_color=AppTheme.INPUT_BG,
+            filled=True,
+            content_padding=ft.padding.all(12),
         )
         error_text = ft.Text("", color=AppTheme.DANGER, visible=False)
 
@@ -218,74 +241,72 @@ class GastosView(ft.Column):
             ]
             return
 
-        controls: list[ft.Control] = []
+        controls = []
         total = 0.0
         for gasto in gastos:
             total += float(gasto.get("monto") or 0)
             controls.append(
-                ft.Card(
-                    elevation=1,
-                    content=ft.Container(
-                        padding=16,
-                        content=ft.Column(
-                            [
-                                ft.Row(
-                                    [
-                                        ft.Column(
-                                            [
-                                                ft.Text(
-                                                    gasto["concepto"],
-                                                    weight=ft.FontWeight.BOLD,
-                                                ),
-                                                ft.Text(
-                                                    f"{gasto.get('categoria') or 'Sin categoria'} | {short_datetime(gasto.get('fecha'))}",
-                                                    size=12,
-                                                    color=AppTheme.TEXT_SECONDARY,
-                                                ),
-                                            ],
-                                            expand=True,
-                                        ),
-                                        ft.Text(
-                                            money(float(gasto.get("monto") or 0)),
-                                            color=AppTheme.DANGER,
-                                            weight=ft.FontWeight.BOLD,
-                                        ),
-                                    ]
-                                ),
-                                ft.Text(
-                                    gasto.get("observaciones") or "Sin observaciones.",
-                                    size=12,
-                                    color=AppTheme.TEXT_SECONDARY,
-                                ),
-                            ],
-                            spacing=10,
-                        ),
+                card(
+                    ft.Column(
+                        [
+                            ft.Row(
+                                [
+                                    ft.Column(
+                                        [
+                                            ft.Text(
+                                                gasto["concepto"],
+                                                size=13,
+                                                weight=ft.FontWeight.BOLD,
+                                                color=AppTheme.TEXT_PRIMARY,
+                                            ),
+                                            ft.Text(
+                                                f"{gasto.get('categoria') or 'Sin categoria'} | {short_datetime(gasto.get('fecha'))}",
+                                                size=11,
+                                                color=AppTheme.TEXT_MUTED,
+                                            ),
+                                        ],
+                                        expand=True,
+                                        spacing=2,
+                                    ),
+                                    ft.Text(
+                                        money(float(gasto.get("monto") or 0)),
+                                        size=14,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=AppTheme.DANGER,
+                                    ),
+                                ]
+                            ),
+                            ft.Text(
+                                gasto.get("observaciones") or "Sin observaciones.",
+                                size=11,
+                                color=AppTheme.TEXT_MUTED,
+                            ),
+                        ],
+                        spacing=8,
                     ),
                 )
             )
 
         if not self.is_mobile and len(controls) > 0:
             controls.append(
-                ft.Container(
-                    padding=16,
-                    bgcolor=AppTheme.SURFACE_CONTAINER_LOW,
-                    border_radius=12,
-                    content=ft.Row(
+                card(
+                    ft.Row(
                         [
                             ft.Text(
                                 "TOTAL",
+                                size=14,
                                 weight=ft.FontWeight.BOLD,
                                 color=AppTheme.TEXT_PRIMARY,
                             ),
                             ft.Container(expand=True),
                             ft.Text(
                                 money(total),
+                                size=18,
                                 weight=ft.FontWeight.BOLD,
                                 color=AppTheme.DANGER,
-                                size=18,
                             ),
                         ]
-                    ),
+                    )
                 )
             )
 
