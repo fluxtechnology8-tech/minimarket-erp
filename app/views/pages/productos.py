@@ -75,28 +75,6 @@ class ProductosView(ft.Container):
         )
 
     def _build_header(self) -> ft.Container:
-        action_button = (
-            ft.Container()
-            if self.is_mobile
-            else ft.Container(
-                content=ft.Row(
-                    [
-                        ft.Icon(ft.Icons.ADD_ROUNDED, color="#FFFFFF", size=15),
-                        ft.Text(
-                            "Nuevo Producto",
-                            size=12,
-                            weight=ft.FontWeight.W_600,
-                            color="#FFFFFF",
-                        ),
-                    ],
-                    spacing=6,
-                ),
-                bgcolor=AppTheme.PRIMARY,
-                border_radius=AppTheme.R_PILL,
-                padding=ft.padding.symmetric(horizontal=16, vertical=10),
-                on_click=self.open_form,
-            )
-        )
         return ft.Row(
             [
                 ft.Column(
@@ -116,7 +94,24 @@ class ProductosView(ft.Container):
                     tight=True,
                 ),
                 ft.Container(expand=True),
-                action_button,
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Icon(ft.Icons.ADD_ROUNDED, color="#FFFFFF", size=15),
+                            ft.Text(
+                                "Nuevo Producto",
+                                size=12,
+                                weight=ft.FontWeight.W_600,
+                                color="#FFFFFF",
+                            ),
+                        ],
+                        spacing=6,
+                    ),
+                    bgcolor=AppTheme.PRIMARY,
+                    border_radius=AppTheme.R_PILL,
+                    padding=ft.padding.symmetric(horizontal=16, vertical=10),
+                    on_click=self.open_form,
+                ),
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
@@ -265,6 +260,7 @@ class ProductosView(ft.Container):
         stock_bg: str,
     ) -> ft.Container:
         precio = producto.get("precio_venta") or 0
+        producto_imagen = producto.get("imagen")
 
         def on_edit(e):
             self.open_edit_form(producto)
@@ -272,27 +268,35 @@ class ProductosView(ft.Container):
         def on_delete(e):
             self._show_delete_confirmation(producto)
 
+        if producto_imagen:
+            image_section = ft.Container(
+                height=90,
+                border_radius=ft.BorderRadius(AppTheme.R_LG, AppTheme.R_LG, 0, 0),
+                clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                content=ft.Image(
+                    src=producto_imagen,
+                    fit=ft.BoxFit.COVER,
+                    width=200,
+                    height=90,
+                ),
+            )
+        else:
+            image_section = ft.Container(
+                height=90,
+                bgcolor=AppTheme.PRIMARY_LIGHT,
+                border_radius=ft.BorderRadius(AppTheme.R_LG, AppTheme.R_LG, 0, 0),
+                content=ft.Icon(
+                    ft.Icons.INVENTORY_2_OUTLINED,
+                    size=40,
+                    color=AppTheme.PRIMARY,
+                ),
+                alignment=ft.Alignment(0, 0),
+            )
+
         return ft.Container(
             content=ft.Column(
                 [
-                    ft.Container(
-                        height=90,
-                        bgcolor=AppTheme.PRIMARY_LIGHT,
-                        border_radius=AppTheme.R_MD,
-                        content=ft.Stack(
-                            controls=[
-                                ft.Container(
-                                    content=ft.Icon(
-                                        ft.Icons.INVENTORY_2_OUTLINED,
-                                        size=40,
-                                        color=AppTheme.PRIMARY,
-                                    ),
-                                    alignment=ft.Alignment(0, 0),
-                                    height=90,
-                                ),
-                            ],
-                        ),
-                    ),
+                    image_section,
                     ft.Container(
                         content=ft.Column(
                             [
@@ -331,10 +335,29 @@ class ProductosView(ft.Container):
                                 ft.Container(height=8),
                                 ft.Row(
                                     [
-                                        primary_btn(
-                                            "Editar",
-                                            ft.Icons.EDIT_ROUNDED,
-                                            "ghost",
+                                        ft.Container(
+                                            content=ft.Row(
+                                                [
+                                                    ft.Icon(
+                                                        ft.Icons.EDIT_ROUNDED,
+                                                        size=14,
+                                                        color=AppTheme.PRIMARY,
+                                                    ),
+                                                    ft.Text(
+                                                        "Editar",
+                                                        size=11,
+                                                        weight=ft.FontWeight.W_500,
+                                                        color=AppTheme.PRIMARY,
+                                                    ),
+                                                ],
+                                                spacing=4,
+                                                tight=True,
+                                            ),
+                                            bgcolor=AppTheme.PRIMARY_LIGHT,
+                                            border_radius=AppTheme.R_PILL,
+                                            padding=ft.padding.symmetric(
+                                                horizontal=12, vertical=6
+                                            ),
                                             on_click=on_edit,
                                         ),
                                         ft.Container(

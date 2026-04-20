@@ -8,52 +8,25 @@ from views.ui.utils import money, parse_int, parse_float, short_datetime
 
 class BoletasView(ft.Container):
     def __init__(self, page: ft.Page, controller):
-        super().__init__(expand=True, padding=0)
+        super().__init__(expand=True, padding=24)
         self._page = page
         self.controller = controller
-        self.carrito = []
-        self.cart_list = ft.ListView(spacing=8, expand=True)
-        self.ventas_list = ft.ListView(spacing=8, expand=True)
-        self.total_text = ft.Text(
-            "S/ 0.00", size=24, weight=ft.FontWeight.BOLD, color=AppTheme.PRIMARY
-        )
+        self._cart = {}
+        self._cart_col = ft.Column(spacing=0, expand=True)
+        self._cart_total_col = ft.Column(spacing=0)
+        self._cart_count_badge = None
         self.build_view()
 
     def build_view(self) -> None:
-        self.cliente_nombre = app_input("Nombre / razón social")
-        self.cliente_documento = app_input("DNI / RUC")
-        self.product_dropdown = ft.Dropdown(
-            label="Producto",
-            options=self._product_options(),
-            border_radius=AppTheme.R_MD,
-            border_color=AppTheme.INPUT_BORDER,
-            focused_border_color=AppTheme.INPUT_FOCUSED,
-            fill_color=AppTheme.INPUT_BG,
-            filled=True,
-        )
-        self.precio_field = app_input(
-            "Precio unitario",
-            value="0.00",
-            width=120,
-            keyboard_type=ft.KeyboardType.NUMBER,
-        )
-        self.cantidad_field = app_input(
-            "Cantidad", value="1", width=100, keyboard_type=ft.KeyboardType.NUMBER
-        )
-
         self.refresh_cart()
-        self.refresh_sales()
-
-        self.content = ft.ListView(
+        self.content = ft.Column(
             [
                 self._build_header(),
-                self._build_new_sale_form(),
-                self._build_cart_section(),
-                self._build_recent_sales(),
+                self._build_main_row(),
             ],
+            scroll=ft.ScrollMode.AUTO,
             expand=True,
-            spacing=20,
-            padding=24,
+            spacing=14,
         )
 
     def _build_header(self) -> ft.Container:
@@ -61,13 +34,13 @@ class BoletasView(ft.Container):
             content=ft.Column(
                 [
                     ft.Text(
-                        "Nueva Venta",
+                        "Venta en Curso",
                         size=20,
                         weight=ft.FontWeight.BOLD,
                         color=AppTheme.TEXT_PRIMARY,
                     ),
                     ft.Text(
-                        "Registra una nueva transacción",
+                        "Seleccione productos para la boleta actual",
                         size=13,
                         color=AppTheme.TEXT_MUTED,
                     ),
@@ -76,372 +49,483 @@ class BoletasView(ft.Container):
             ),
         )
 
-    def _build_new_sale_form(self) -> ft.Container:
-        return card(
-            ft.Column(
-                [
-                    ft.ResponsiveRow(
-                        [
-                            ft.Column([self.cliente_nombre], col={"md": 8}),
-                            ft.Column([self.cliente_documento], col={"md": 4}),
-                        ],
-                        run_spacing=12,
-                    ),
-                    ft.ResponsiveRow(
-                        [
-                            ft.Column([self.product_dropdown], col={"md": 6}),
-                            ft.Column([self.precio_field], col={"md": 2}),
-                            ft.Column([self.cantidad_field], col={"md": 2}),
-                            ft.Column(
-                                [
-                                    ft.Container(
-                                        content=ft.Text(
-                                            "Cargar",
-                                            size=12,
-                                            weight=ft.FontWeight.W_500,
-                                        ),
-                                        padding=ft.Padding.symmetric(
-                                            horizontal=8, vertical=12
-                                        ),
-                                        bgcolor=AppTheme.INPUT_BG,
-                                        border_radius=AppTheme.R_MD,
-                                        on_click=self.load_product_price,
-                                    ),
-                                ],
-                                col={"md": 1},
-                            ),
-                            ft.Column(
-                                [
-                                    ft.Container(
-                                        padding=12,
-                                        bgcolor=AppTheme.PRIMARY,
-                                        border_radius=AppTheme.R_PILL,
-                                        content=ft.Row(
-                                            [
-                                                ft.Icon(
-                                                    ft.Icons.ADD_SHOPPING_CART,
-                                                    color=ft.Colors.WHITE,
-                                                    size=18,
-                                                ),
-                                                ft.Text(
-                                                    "Agregar",
-                                                    size=13,
-                                                    weight=ft.FontWeight.W_600,
-                                                    color=ft.Colors.WHITE,
-                                                ),
-                                            ],
-                                            spacing=6,
-                                        ),
-                                        on_click=self.add_to_cart,
-                                    ),
-                                ],
-                                col={"md": 1},
-                            ),
-                        ],
-                        run_spacing=12,
-                    ),
-                ],
-                spacing=16,
-            ),
+    def _build_main_row(self) -> ft.Row:
+        return ft.Row(
+            [
+                ft.Container(self._build_product_grid(), expand=True),
+                ft.Container(self._build_cart_panel(), width=290),
+            ],
+            spacing=14,
+            vertical_alignment=ft.CrossAxisAlignment.START,
         )
 
-    def _build_cart_section(self) -> ft.Container:
-        return card(
-            ft.Column(
-                [
-                    ft.Row(
-                        [
-                            ft.Text(
-                                "Carrito",
-                                size=18,
-                                weight=ft.FontWeight.BOLD,
-                                color=AppTheme.TEXT_PRIMARY,
-                            ),
-                            ft.Container(expand=True),
-                            ft.Container(
-                                padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-                                bgcolor=AppTheme.PRIMARY_LIGHT,
-                                border_radius=AppTheme.R_PILL,
-                                content=ft.Text(
-                                    f"{len(self.carrito)} items",
-                                    size=12,
-                                    weight=ft.FontWeight.W_500,
-                                    color=AppTheme.PRIMARY,
+    def _build_product_grid(self) -> ft.Container:
+        products = [
+            ("Pluma Estilográfica Premium", "✒️", 12.50, 34, "Tinta negra, punta fina"),
+            ("Cuaderno de Cuero A5", "📔", 24.00, 5, "Hojas punteadas, 120g"),
+            ("Set Cintas Washi Pastel", "🎀", 8.20, 120, "Paquete de 6 unidades"),
+            ("Pack Resaltadores Neon", "🖊️", 5.90, 45, "4 colores de alta visibilidad"),
+            ("Agenda Ejecutiva 2024", "📅", 18.00, 1, "Diseño minimalista gris"),
+            ("Marcadores Caligráficos", "🎨", 14.30, 28, "Set de 12 gradientes azules"),
+        ]
+
+        def prod_tile(name, emoji, price, stock, desc):
+            return ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Stack(
+                            controls=[
+                                ft.Container(
+                                    content=ft.Text(emoji, size=36),
+                                    bgcolor=AppTheme.INPUT_BG,
+                                    height=80,
+                                    alignment=ft.Alignment(0, 0),
+                                    border_radius=ft.BorderRadius(
+                                        AppTheme.R_LG, AppTheme.R_LG, 0, 0
+                                    ),
                                 ),
-                            ),
-                        ]
-                    ),
-                    ft.Container(height=200, content=self.cart_list),
-                    ft.Container(
-                        padding=16,
-                        border_radius=AppTheme.R_MD,
-                        bgcolor=AppTheme.INPUT_BG,
-                        content=ft.Row(
-                            [
-                                ft.Text(
-                                    "TOTAL",
-                                    size=14,
-                                    weight=ft.FontWeight.W_500,
-                                    color=AppTheme.TEXT_MUTED,
-                                ),
-                                ft.Container(expand=True),
-                                self.total_text,
-                            ]
-                        ),
-                    ),
-                    ft.Container(
-                        padding=14,
-                        bgcolor=AppTheme.PRIMARY,
-                        border_radius=AppTheme.R_PILL,
-                        content=ft.Row(
-                            [
-                                ft.Icon(
-                                    ft.Icons.RECEIPT_LONG,
-                                    color=ft.Colors.WHITE,
-                                    size=20,
-                                ),
-                                ft.Text(
-                                    "Generar boleta",
-                                    size=14,
-                                    weight=ft.FontWeight.W_600,
-                                    color=ft.Colors.WHITE,
+                                ft.Container(
+                                    content=ft.Text(
+                                        f"{stock} unid.",
+                                        size=9,
+                                        weight=ft.FontWeight.BOLD,
+                                        color="#FFFFFF",
+                                    ),
+                                    bgcolor=AppTheme.PRIMARY,
+                                    border_radius=AppTheme.R_PILL,
+                                    padding=ft.padding.symmetric(
+                                        horizontal=6, vertical=2
+                                    ),
+                                    top=6,
+                                    right=6,
                                 ),
                             ],
-                            alignment=ft.MainAxisAlignment.CENTER,
-                            spacing=10,
                         ),
-                        on_click=self.generate_sale,
+                        ft.Container(
+                            content=ft.Column(
+                                [
+                                    ft.Text(
+                                        name,
+                                        size=12,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=AppTheme.TEXT_PRIMARY,
+                                        max_lines=2,
+                                    ),
+                                    ft.Text(desc, size=10, color=AppTheme.TEXT_MUTED),
+                                    ft.Container(height=4),
+                                    ft.Row(
+                                        [
+                                            ft.Text(
+                                                f"${price:.2f}",
+                                                size=16,
+                                                weight=ft.FontWeight.BOLD,
+                                                color=AppTheme.PRIMARY,
+                                            ),
+                                            ft.Container(expand=True),
+                                            ft.Container(
+                                                content=ft.Icon(
+                                                    ft.Icons.SHOPPING_CART_OUTLINED,
+                                                    color=AppTheme.TEXT_MUTED,
+                                                    size=16,
+                                                ),
+                                                width=30,
+                                                height=30,
+                                                bgcolor=AppTheme.INPUT_BG,
+                                                border=ft.Border.all(
+                                                    0.5, AppTheme.CARD_BORDER
+                                                ),
+                                                border_radius=AppTheme.R_MD,
+                                                alignment=ft.Alignment(0, 0),
+                                            ),
+                                        ],
+                                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                    ),
+                                ],
+                                spacing=3,
+                            ),
+                            padding=10,
+                        ),
+                    ],
+                    spacing=0,
+                ),
+                bgcolor=AppTheme.CARD_BG,
+                border_radius=AppTheme.R_LG,
+                border=ft.Border.all(0.5, AppTheme.CARD_BORDER),
+                shadow=shadow(AppTheme.PRIMARY, 4, 1),
+                on_click=lambda e, n=name, em=emoji, pr=price: self._add_to_cart(
+                    n, em, pr
+                ),
+                ink=True,
+                expand=1,
+            )
+
+        grid_rows = []
+        for i in range(0, len(products), 3):
+            grid_rows.append(
+                ft.Row(
+                    controls=[prod_tile(*p) for p in products[i : i + 3]],
+                    spacing=10,
+                )
+            )
+
+        return ft.Column(
+            [
+                ft.Row(
+                    [
+                        ft.Container(
+                            content=ft.Text(
+                                "PAPELERÍA",
+                                size=11,
+                                weight=ft.FontWeight.W_700,
+                                color="#FFFFFF",
+                            ),
+                            bgcolor=AppTheme.PRIMARY,
+                            border_radius=AppTheme.R_PILL,
+                            padding=ft.padding.symmetric(horizontal=12, vertical=5),
+                        ),
+                        ft.Container(
+                            content=ft.Text(
+                                "OFICINA", size=11, color=AppTheme.TEXT_MUTED
+                            ),
+                            border=ft.Border.all(0.5, AppTheme.CARD_BORDER),
+                            border_radius=AppTheme.R_PILL,
+                            padding=ft.padding.symmetric(horizontal=12, vertical=5),
+                        ),
+                        ft.Container(
+                            content=ft.Text("ARTE", size=11, color=AppTheme.TEXT_MUTED),
+                            border=ft.Border.all(0.5, AppTheme.CARD_BORDER),
+                            border_radius=AppTheme.R_PILL,
+                            padding=ft.padding.symmetric(horizontal=12, vertical=5),
+                        ),
+                    ],
+                    spacing=8,
+                ),
+                ft.Container(height=12),
+                *grid_rows,
+                ft.Container(height=12),
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Icon(
+                                ft.Icons.TRENDING_UP_ROUNDED,
+                                color=AppTheme.PRIMARY,
+                                size=14,
+                            ),
+                            ft.Text(
+                                "OCUPACIÓN DE CAJA",
+                                size=10,
+                                weight=ft.FontWeight.W_600,
+                                color=AppTheme.TEXT_MUTED,
+                                expand=True,
+                            ),
+                            ft.Text(
+                                "75%",
+                                size=12,
+                                weight=ft.FontWeight.BOLD,
+                                color=AppTheme.PRIMARY,
+                            ),
+                        ],
+                        spacing=6,
                     ),
-                ],
-                spacing=12,
-            ),
+                    padding=ft.padding.only(bottom=8),
+                ),
+                ft.Container(
+                    content=ft.Container(
+                        bgcolor=AppTheme.PRIMARY,
+                        border_radius=AppTheme.R_PILL,
+                        height=8,
+                        width=310,
+                    ),
+                    bgcolor=AppTheme.INPUT_BG,
+                    border_radius=AppTheme.R_PILL,
+                    height=8,
+                ),
+                ft.Text("Capacidad diaria", size=10, color=AppTheme.TEXT_MUTED),
+            ],
+            spacing=10,
+            expand=True,
         )
 
-    def _build_recent_sales(self) -> ft.Container:
+    def _build_cart_panel(self) -> ft.Container:
+        cart_count = ft.Container(
+            content=ft.Text(
+                "0 Items", size=10, weight=ft.FontWeight.W_600, color=AppTheme.PRIMARY
+            ),
+            bgcolor=AppTheme.PRIMARY_LIGHT,
+            padding=ft.padding.symmetric(horizontal=8, vertical=3),
+            border_radius=AppTheme.R_PILL,
+        )
+        self._cart_count_badge = cart_count
+
+        ventas_recientes = ft.Column(
+            [
+                ft.Row(
+                    [
+                        ft.Text(
+                            "Ventas Recientes",
+                            size=12,
+                            weight=ft.FontWeight.BOLD,
+                            color=AppTheme.TEXT_PRIMARY,
+                            expand=True,
+                        ),
+                        ft.Text("VER TODO", size=11, color=AppTheme.PRIMARY),
+                    ],
+                ),
+                ft.Container(height=6),
+                ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Text(
+                                "#BOL-00452",
+                                size=12,
+                                weight=ft.FontWeight.W_600,
+                                color=AppTheme.TEXT_PRIMARY,
+                            ),
+                            ft.Text(
+                                "Cliente: Arturo P.", size=11, color=AppTheme.TEXT_MUTED
+                            ),
+                            ft.Text(
+                                "$12.00",
+                                size=13,
+                                weight=ft.FontWeight.BOLD,
+                                color=AppTheme.PRIMARY,
+                            ),
+                        ],
+                        spacing=2,
+                    ),
+                    bgcolor=AppTheme.INPUT_BG,
+                    border_radius=AppTheme.R_MD,
+                    padding=10,
+                    border=ft.Border.all(0.5, AppTheme.CARD_BORDER),
+                ),
+            ],
+            spacing=0,
+        )
+
         return card(
             ft.Column(
                 [
                     ft.Row(
                         [
                             ft.Text(
-                                "Boletas recientes",
-                                size=18,
+                                "Carrito de Venta",
+                                size=14,
                                 weight=ft.FontWeight.BOLD,
                                 color=AppTheme.TEXT_PRIMARY,
+                                expand=True,
                             ),
-                            ft.Container(expand=True),
-                            ft.Text("Ver todo", size=12, color=AppTheme.PRIMARY),
-                        ]
+                            cart_count,
+                        ],
                     ),
-                    ft.Container(height=300, content=self.ventas_list),
+                    ft.Container(height=10),
+                    self._cart_col,
+                    ft.Container(height=4),
+                    self._cart_total_col,
+                    ft.Container(height=10),
+                    primary_btn("🧾  Generar Boleta", icon=None, expand=True),
+                    ft.Container(height=6),
+                    primary_btn("Cancelar", variant="outline", expand=True),
+                    ft.Divider(height=14, color=AppTheme.DIVIDER),
+                    ventas_recientes,
                 ],
-                spacing=12,
+                spacing=0,
             ),
         )
 
-    def _product_options(self):
-        options = []
-        for producto in self.controller.get_productos_con_stock():
-            if int(producto.get("stock") or 0) <= 0:
-                continue
-            label = f"{producto['codigo']} - {producto['nombre']}"
-            options.append(ft.dropdown.Option(str(producto["id"]), label))
-        return options
-
-    def load_product_price(self, e) -> None:
-        if not self.product_dropdown.value:
-            self.show_message("Seleccione un producto.")
-            return
-        producto = self.controller.get_producto(int(self.product_dropdown.value))
-        if producto:
-            self.precio_field.value = str(float(producto.get("precio_venta") or 0))
-            self.update()
-
-    def add_to_cart(self, e) -> None:
-        if not self.product_dropdown.value:
-            self.show_message("Seleccione un producto.")
-            return
-        producto = self.controller.get_producto(int(self.product_dropdown.value))
-        if not producto:
-            self.show_message("El producto ya no existe.")
-            return
-        cantidad = parse_int(self.cantidad_field.value, 1)
-        if cantidad <= 0:
-            self.show_message("La cantidad debe ser mayor a cero.")
-            return
-        if cantidad > int(producto.get("stock") or 0):
-            self.show_message("No hay stock suficiente.")
-            return
-        precio = parse_float(self.precio_field.value)
-        if precio < 0:
-            self.show_message("El precio no puede ser negativo.")
-            return
-
-        existing = next(
-            (item for item in self.carrito if item["producto_id"] == producto["id"]),
-            None,
-        )
-        if existing:
-            nueva_cantidad = existing["cantidad"] + cantidad
-            if nueva_cantidad > int(producto.get("stock") or 0):
-                self.show_message("La cantidad total supera el stock disponible.")
-                return
-            existing["cantidad"] = nueva_cantidad
-            existing["precio_unitario"] = precio
+    def _add_to_cart(self, name, emoji, price):
+        if name in self._cart:
+            self._cart[name]["qty"] += 1
         else:
-            self.carrito.append(
-                {
-                    "producto_id": producto["id"],
-                    "nombre": producto["nombre"],
-                    "cantidad": cantidad,
-                    "precio_unitario": precio,
-                }
-            )
+            self._cart[name] = {"emoji": emoji, "price": price, "qty": 1}
         self.refresh_cart()
-        self.update()
+        if self._page:
+            self._page.update()
+
+    def _remove_from_cart(self, name):
+        if name in self._cart:
+            del self._cart[name]
+        self.refresh_cart()
+        if self._page:
+            self._page.update()
+
+    def _change_qty(self, name, delta):
+        if name in self._cart:
+            self._cart[name]["qty"] += delta
+            if self._cart[name]["qty"] <= 0:
+                del self._cart[name]
+        self.refresh_cart()
+        if self._page:
+            self._page.update()
 
     def refresh_cart(self) -> None:
-        if not self.carrito:
-            self.cart_list.controls = [
-                empty_state("Carrito vacío", "Agrega productos para empezar la venta.")
-            ]
-            self.total_text.value = "S/ 0.00"
+        self._cart_col.controls.clear()
+        self._cart_total_col.controls.clear()
+
+        if not self._cart:
+            self._cart_col.controls.append(
+                ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Icon(
+                                ft.Icons.SHOPPING_CART_OUTLINED,
+                                size=40,
+                                color=AppTheme.TEXT_DISABLED,
+                            ),
+                            ft.Text(
+                                "Haz clic en un producto\npara agregarlo",
+                                size=12,
+                                color=AppTheme.TEXT_MUTED,
+                                text_align=ft.TextAlign.CENTER,
+                            ),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=8,
+                    ),
+                    height=120,
+                    alignment=ft.Alignment(0, 0),
+                    bgcolor=AppTheme.INPUT_BG,
+                    border_radius=AppTheme.R_MD,
+                    border=ft.Border.all(0.5, AppTheme.CARD_BORDER),
+                )
+            )
+            if self._cart_count_badge:
+                self._cart_count_badge.content = ft.Text(
+                    "0 Items",
+                    size=10,
+                    weight=ft.FontWeight.W_600,
+                    color=AppTheme.PRIMARY,
+                )
             return
 
-        rows = []
+        items = list(self._cart.items())
         total = 0.0
-        for item in self.carrito:
-            subtotal = item["cantidad"] * item["precio_unitario"]
+        for name, v in items:
+            subtotal = v["price"] * v["qty"]
             total += subtotal
-            rows.append(
+            self._cart_col.controls.append(
                 ft.Container(
-                    padding=12,
-                    border_radius=AppTheme.R_MD,
-                    bgcolor=AppTheme.INPUT_BG,
                     content=ft.Row(
                         [
-                            ft.Container(
-                                width=40,
-                                height=40,
-                                border_radius=AppTheme.R_MD,
-                                bgcolor=AppTheme.PRIMARY_LIGHT,
-                                content=ft.Icon(
-                                    ft.Icons.SHOPPING_BAG,
-                                    color=AppTheme.PRIMARY,
-                                    size=20,
-                                ),
-                            ),
+                            ft.Text(v["emoji"], size=22),
                             ft.Column(
                                 [
                                     ft.Text(
-                                        item["nombre"],
-                                        size=13,
+                                        name,
+                                        size=12,
                                         weight=ft.FontWeight.W_600,
                                         color=AppTheme.TEXT_PRIMARY,
+                                        max_lines=1,
                                     ),
                                     ft.Text(
-                                        f"Cant: {item['cantidad']} x {money(item['precio_unitario'])}",
+                                        f"${v['price']:.2f} c/u",
                                         size=11,
                                         color=AppTheme.TEXT_MUTED,
                                     ),
                                 ],
+                                spacing=1,
                                 expand=True,
-                                tight=True,
                             ),
-                            ft.Text(
-                                money(subtotal), size=14, weight=ft.FontWeight.BOLD
-                            ),
-                            ft.IconButton(
-                                icon=ft.Icons.DELETE,
-                                icon_color=AppTheme.DANGER,
-                                on_click=lambda _, pid=item["producto_id"]: (
-                                    self.remove_item(pid)
-                                ),
-                            ),
-                        ],
-                        spacing=12,
-                    ),
-                )
-            )
-        self.cart_list.controls = rows
-        self.total_text.value = money(total)
-
-    def remove_item(self, producto_id: int) -> None:
-        self.carrito = [
-            item for item in self.carrito if item["producto_id"] != producto_id
-        ]
-        self.refresh_cart()
-        self.update()
-
-    def refresh_sales(self) -> None:
-        ventas = self.controller.get_all(limit=12)
-        if not ventas:
-            self.ventas_list.controls = [
-                empty_state(
-                    "Sin boletas registradas", "Las ventas completadas aparecerán aquí."
-                )
-            ]
-            return
-
-        controls = []
-        for venta in ventas:
-            controls.append(
-                ft.Container(
-                    padding=12,
-                    border_radius=AppTheme.R_MD,
-                    bgcolor=AppTheme.INPUT_BG,
-                    content=ft.Column(
-                        [
                             ft.Row(
                                 [
-                                    ft.Text(
-                                        venta["numero_boleta"],
-                                        size=13,
-                                        weight=ft.FontWeight.BOLD,
-                                        color=AppTheme.PRIMARY,
+                                    ft.Container(
+                                        content=ft.Text(
+                                            "−", size=14, color=AppTheme.TEXT_MUTED
+                                        ),
+                                        width=24,
+                                        height=24,
+                                        bgcolor=AppTheme.INPUT_BG,
+                                        border=ft.Border.all(0.5, AppTheme.CARD_BORDER),
+                                        border_radius=6,
+                                        alignment=ft.Alignment(0, 0),
+                                        ink=True,
+                                        on_click=lambda e, n=name: self._change_qty(
+                                            n, -1
+                                        ),
                                     ),
-                                    ft.Container(expand=True),
                                     ft.Text(
-                                        money(float(venta.get("total") or 0)),
-                                        size=13,
-                                        weight=ft.FontWeight.BOLD,
+                                        str(v["qty"]),
+                                        size=12,
+                                        width=20,
+                                        text_align=ft.TextAlign.CENTER,
                                     ),
-                                ]
+                                    ft.Container(
+                                        content=ft.Text(
+                                            "+", size=14, color=AppTheme.TEXT_MUTED
+                                        ),
+                                        width=24,
+                                        height=24,
+                                        bgcolor=AppTheme.INPUT_BG,
+                                        border=ft.Border.all(0.5, AppTheme.CARD_BORDER),
+                                        border_radius=6,
+                                        alignment=ft.Alignment(0, 0),
+                                        ink=True,
+                                        on_click=lambda e, n=name: self._change_qty(
+                                            n, 1
+                                        ),
+                                    ),
+                                ],
+                                spacing=4,
                             ),
-                            ft.Text(
-                                f"{venta.get('cliente_nombre') or 'Cliente'} | {short_datetime(venta.get('fecha'))}",
-                                size=11,
-                                color=AppTheme.TEXT_MUTED,
+                            ft.Container(
+                                content=ft.Text(
+                                    "✕", size=12, color=AppTheme.TEXT_MUTED
+                                ),
+                                ink=True,
+                                on_click=lambda e, n=name: self._remove_from_cart(n),
+                                padding=4,
                             ),
                         ],
-                        tight=True,
-                        spacing=2,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=8,
                     ),
+                    border=ft.Border(bottom=ft.BorderSide(0.5, AppTheme.CARD_BORDER)),
+                    padding=ft.padding.symmetric(vertical=8),
                 )
             )
-        self.ventas_list.controls = controls
 
-    def generate_sale(self, e) -> None:
-        try:
-            result = self.controller.generar_boleta(
-                self.carrito,
-                cliente_nombre=(self.cliente_nombre.value or "").strip(),
-                cliente_documento=(self.cliente_documento.value or "").strip(),
+        igv = total * 0.18
+        self._cart_total_col.controls += [
+            ft.Row(
+                [
+                    ft.Text(
+                        "Subtotal", size=13, color=AppTheme.TEXT_MUTED, expand=True
+                    ),
+                    ft.Text(f"${total:.2f}", size=13, color=AppTheme.TEXT_SECONDARY),
+                ],
+            ),
+            ft.Row(
+                [
+                    ft.Text(
+                        "IGV (18%)", size=13, color=AppTheme.TEXT_MUTED, expand=True
+                    ),
+                    ft.Text(f"${igv:.2f}", size=13, color=AppTheme.TEXT_SECONDARY),
+                ],
+            ),
+            ft.Divider(height=0.5, color=AppTheme.DIVIDER),
+            ft.Row(
+                [
+                    ft.Text(
+                        "Total",
+                        size=15,
+                        weight=ft.FontWeight.BOLD,
+                        color=AppTheme.TEXT_PRIMARY,
+                        expand=True,
+                    ),
+                    ft.Text(
+                        f"${total + igv:.2f}",
+                        size=16,
+                        weight=ft.FontWeight.BOLD,
+                        color=AppTheme.PRIMARY,
+                    ),
+                ],
+            ),
+        ]
+
+        count = sum(v["qty"] for v in self._cart.values())
+        if self._cart_count_badge:
+            self._cart_count_badge.content = ft.Text(
+                f"{count} Items",
+                size=10,
+                weight=ft.FontWeight.W_600,
+                color=AppTheme.PRIMARY,
             )
-            numero = result.get("numero_boleta", "")
-            self.carrito = []
-            self.cliente_nombre.value = ""
-            self.cliente_documento.value = ""
-            self.product_dropdown.options = self._product_options()
-            self.product_dropdown.value = None
-            self.refresh_cart()
-            self.refresh_sales()
-            self.update()
-            self.show_message(f"Boleta generada: {numero}")
-        except Exception as exc:
-            self.show_message(f"No se pudo generar la boleta: {exc}")
-
-    def show_message(self, message: str) -> None:
-        self._page.snack_bar = ft.SnackBar(ft.Text(message))
-        self._page.snack_bar.open = True
-        self._page.update()
