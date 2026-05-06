@@ -89,7 +89,7 @@ class BoletasView(ft.Container):
                                         f"{stock} unid.",
                                         size=9,
                                         weight=ft.FontWeight.BOLD,
-                                        color="#FFFFFF",
+                                        color=AppTheme.CARD_BG,
                                     ),
                                     bgcolor=AppTheme.PRIMARY,
                                     border_radius=AppTheme.R_PILL,
@@ -177,7 +177,7 @@ class BoletasView(ft.Container):
                                 "PAPELERÍA",
                                 size=11,
                                 weight=ft.FontWeight.W_700,
-                                color="#FFFFFF",
+                                color=AppTheme.CARD_BG,
                             ),
                             bgcolor=AppTheme.PRIMARY,
                             border_radius=AppTheme.R_PILL,
@@ -322,7 +322,18 @@ class BoletasView(ft.Container):
                     ft.Container(height=4),
                     self._cart_total_col,
                     ft.Container(height=10),
-                    primary_btn("🧾  Generar Boleta", icon=None, expand=True),
+                    ft.Row(
+                        [
+                            primary_btn(
+                                "👁️  Vista Previa",
+                                icon=None,
+                                on_click=self._show_cart_preview,
+                                expand=True,
+                            ),
+                            primary_btn("🧾  Generar", icon=None, expand=True),
+                        ],
+                        spacing=6,
+                    ),
                     ft.Container(height=6),
                     primary_btn("Cancelar", variant="outline", expand=True),
                     ft.Divider(height=14, color=AppTheme.DIVIDER),
@@ -356,6 +367,129 @@ class BoletasView(ft.Container):
         self.refresh_cart()
         if self._page:
             self._page.update()
+
+    def _show_cart_preview(self, e):
+        if not self._cart:
+            self._page.snack_bar = ft.SnackBar(ft.Text("El carrito está vacío"))
+            self._page.snack_bar.open = True
+            self._page.update()
+            return
+
+        items_preview = []
+        total = 0.0
+        for name, v in self._cart.items():
+            subtotal = v["price"] * v["qty"]
+            total += subtotal
+            items_preview.append(
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Text(v["emoji"], size=18),
+                            ft.Column(
+                                [
+                                    ft.Text(
+                                        name,
+                                        size=12,
+                                        weight=ft.FontWeight.W_600,
+                                        color=AppTheme.TEXT_PRIMARY,
+                                    ),
+                                    ft.Text(
+                                        f"${v['price']:.2f} x {v['qty']}",
+                                        size=11,
+                                        color=AppTheme.TEXT_MUTED,
+                                    ),
+                                ],
+                                spacing=1,
+                                expand=True,
+                            ),
+                            ft.Text(
+                                f"${subtotal:.2f}",
+                                size=13,
+                                weight=ft.FontWeight.BOLD,
+                                color=AppTheme.TEXT_PRIMARY,
+                            ),
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=8,
+                    ),
+                    padding=ft.padding.symmetric(vertical=8),
+                    border=ft.Border(bottom=ft.BorderSide(0.5, AppTheme.CARD_BORDER)),
+                )
+            )
+
+        igv = total * 0.18
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Vista Previa del Carrito"),
+            content=ft.Container(
+                width=400,
+                content=ft.Column(
+                    [
+                        ft.ListView(
+                            controls=items_preview,
+                            spacing=0,
+                            height=250,
+                        ),
+                        ft.Divider(height=1, color=AppTheme.DIVIDER),
+                        ft.Row(
+                            [
+                                ft.Text(
+                                    "Subtotal",
+                                    size=13,
+                                    color=AppTheme.TEXT_MUTED,
+                                    expand=True,
+                                ),
+                                ft.Text(
+                                    f"${total:.2f}",
+                                    size=13,
+                                    color=AppTheme.TEXT_SECONDARY,
+                                ),
+                            ],
+                        ),
+                        ft.Row(
+                            [
+                                ft.Text(
+                                    "IGV (18%)",
+                                    size=13,
+                                    color=AppTheme.TEXT_MUTED,
+                                    expand=True,
+                                ),
+                                ft.Text(
+                                    f"${igv:.2f}",
+                                    size=13,
+                                    color=AppTheme.TEXT_SECONDARY,
+                                ),
+                            ],
+                        ),
+                        ft.Divider(height=0.5, color=AppTheme.DIVIDER),
+                        ft.Row(
+                            [
+                                ft.Text(
+                                    "Total",
+                                    size=15,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=AppTheme.TEXT_PRIMARY,
+                                    expand=True,
+                                ),
+                                ft.Text(
+                                    f"${total + igv:.2f}",
+                                    size=16,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=AppTheme.PRIMARY,
+                                ),
+                            ],
+                        ),
+                    ],
+                    tight=True,
+                    spacing=10,
+                ),
+            ),
+            actions=[
+                ft.TextButton("Cerrar", on_click=lambda _: self._page.pop_dialog()),
+            ],
+        )
+        self._page.show_dialog(dialog)
 
     def refresh_cart(self) -> None:
         self._cart_col.controls.clear()

@@ -233,7 +233,7 @@ class DashboardView(ft.Container):
                                     ),
                                     ft.Container(
                                         content=ft.Text(
-                                            "Meses", size=11, color="#FFFFFF"
+                                            "Meses", size=11, color=AppTheme.CARD_BG
                                         ),
                                         bgcolor=AppTheme.PRIMARY,
                                         padding=ft.padding.symmetric(

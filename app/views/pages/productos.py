@@ -97,12 +97,14 @@ class ProductosView(ft.Container):
                 ft.Container(
                     content=ft.Row(
                         [
-                            ft.Icon(ft.Icons.ADD_ROUNDED, color="#FFFFFF", size=15),
+                            ft.Icon(
+                                ft.Icons.ADD_ROUNDED, color=AppTheme.CARD_BG, size=15
+                            ),
                             ft.Text(
                                 "Nuevo Producto",
                                 size=12,
                                 weight=ft.FontWeight.W_600,
-                                color="#FFFFFF",
+                                color=AppTheme.CARD_BG,
                             ),
                         ],
                         spacing=6,
@@ -183,7 +185,10 @@ class ProductosView(ft.Container):
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     ft.Container(height=14),
-                    ft.Container(expand=True, content=self.list_view),
+                    ft.Container(
+                        height=450,
+                        content=self.list_view,
+                    ),
                 ],
             ),
         )
@@ -215,10 +220,15 @@ class ProductosView(ft.Container):
         if not productos:
             self.list_view.controls = [
                 ft.Container(
-                    content=empty_state(
-                        "No hay productos para mostrar",
-                        "Agrega el primer producto o ajusta la búsqueda.",
+                    content=ft.Container(
+                        content=empty_state(
+                            "No hay productos para mostrar",
+                            "Agrega el primer producto o ajusta la búsqueda.",
+                        ),
+                        alignment=ft.Alignment(0, 0),
                     ),
+                    height=350,
+                    alignment=ft.Alignment(0, 0),
                 )
             ]
             return

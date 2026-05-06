@@ -6,7 +6,8 @@ Pure visual component.
 from __future__ import annotations
 
 import flet as ft
-from views.ui.theme import T, shadow
+from views.ui import theme
+from views.ui.theme import shadow
 
 
 class TopBar(ft.Container):
@@ -14,6 +15,8 @@ class TopBar(ft.Container):
 
     def __init__(self, page: ft.Page):
         super().__init__()
+        # Access T dynamically to get current theme at construction time
+        T = theme.T
         self.content = ft.Row(
             controls=[
                 # ── Brand ──
@@ -22,10 +25,15 @@ class TopBar(ft.Container):
                         ft.Icon(ft.Icons.STOREFRONT_ROUNDED, color=T.PRIMARY, size=20),
                         ft.Column(
                             controls=[
-                                ft.Text("Papelería Pro", size=14,
-                                        weight=ft.FontWeight.BOLD, color=T.TEXT_H),
-                                ft.Text("Gestión de Inventario", size=10,
-                                        color=T.TEXT_MUTED),
+                                ft.Text(
+                                    "Papelería Pro",
+                                    size=14,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=T.TEXT_H,
+                                ),
+                                ft.Text(
+                                    "Gestión de Inventario", size=10, color=T.TEXT_MUTED
+                                ),
                             ],
                             spacing=0,
                         ),
@@ -37,10 +45,14 @@ class TopBar(ft.Container):
                 ft.Container(
                     content=ft.Row(
                         controls=[
-                            ft.Icon(ft.Icons.SEARCH_ROUNDED, color=T.TEXT_DISABLED,
-                                    size=16),
-                            ft.Text("Buscar productos, ventas o registros...",
-                                    size=13, color=T.TEXT_DISABLED),
+                            ft.Icon(
+                                ft.Icons.SEARCH_ROUNDED, color=T.TEXT_DISABLED, size=16
+                            ),
+                            ft.Text(
+                                "Buscar productos, ventas o registros...",
+                                size=13,
+                                color=T.TEXT_DISABLED,
+                            ),
                         ],
                         spacing=8,
                     ),
@@ -58,25 +70,38 @@ class TopBar(ft.Container):
                         ft.Stack(
                             controls=[
                                 ft.Container(
-                                    content=ft.Icon(ft.Icons.NOTIFICATIONS_OUTLINED,
-                                                    color=T.TEXT_MUTED, size=18),
-                                    width=36, height=36, bgcolor=T.INPUT_BG,
+                                    content=ft.Icon(
+                                        ft.Icons.NOTIFICATIONS_OUTLINED,
+                                        color=T.TEXT_MUTED,
+                                        size=18,
+                                    ),
+                                    width=36,
+                                    height=36,
+                                    bgcolor=T.INPUT_BG,
                                     border=ft.Border.all(0.5, T.CARD_BORDER),
                                     border_radius=T.R_PILL,
                                     alignment=ft.Alignment(0, 0),
                                 ),
                                 ft.Container(
-                                    width=9, height=9, bgcolor=T.ERROR,
-                                    border_radius=T.R_PILL, right=2, top=2,
+                                    width=9,
+                                    height=9,
+                                    bgcolor=T.ERROR,
+                                    border_radius=T.R_PILL,
+                                    right=2,
+                                    top=2,
                                 ),
                             ],
-                            width=36, height=36,
+                            width=36,
+                            height=36,
                         ),
                         # Settings
                         ft.Container(
-                            content=ft.Icon(ft.Icons.SETTINGS_OUTLINED,
-                                            color=T.TEXT_MUTED, size=18),
-                            width=36, height=36, bgcolor=T.INPUT_BG,
+                            content=ft.Icon(
+                                ft.Icons.SETTINGS_OUTLINED, color=T.TEXT_MUTED, size=18
+                            ),
+                            width=36,
+                            height=36,
+                            bgcolor=T.INPUT_BG,
                             border=ft.Border.all(0.5, T.CARD_BORDER),
                             border_radius=T.R_PILL,
                             alignment=ft.Alignment(0, 0),
@@ -86,20 +111,31 @@ class TopBar(ft.Container):
                             content=ft.Row(
                                 controls=[
                                     ft.Container(
-                                        content=ft.Text("AD", size=11,
-                                                        weight=ft.FontWeight.BOLD,
-                                                        color="#FFFFFF"),
-                                        bgcolor=T.PRIMARY, width=28, height=28,
+                                        content=ft.Text(
+                                            "AD",
+                                            size=11,
+                                            weight=ft.FontWeight.BOLD,
+                                            color=T.CARD_BG,
+                                        ),
+                                        bgcolor=T.PRIMARY,
+                                        width=28,
+                                        height=28,
                                         border_radius=T.R_PILL,
                                         alignment=ft.Alignment(0, 0),
                                     ),
                                     ft.Column(
                                         controls=[
-                                            ft.Text("Admin Papelería", size=12,
-                                                    weight=ft.FontWeight.W_600,
-                                                    color=T.TEXT_H),
-                                            ft.Text("Gerente de Tienda", size=10,
-                                                    color=T.TEXT_MUTED),
+                                            ft.Text(
+                                                "Admin Papelería",
+                                                size=12,
+                                                weight=ft.FontWeight.W_600,
+                                                color=T.TEXT_H,
+                                            ),
+                                            ft.Text(
+                                                "Gerente de Tienda",
+                                                size=10,
+                                                color=T.TEXT_MUTED,
+                                            ),
                                         ],
                                         spacing=0,
                                     ),

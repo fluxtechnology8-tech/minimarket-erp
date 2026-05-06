@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import flet as ft
 from core.init_db import init_db
-from views.ui.theme import AppTheme, T, LightPalette, DarkPalette, set_theme, NAV_ITEMS
+from views.ui.theme import AppTheme, LightPalette, DarkPalette, set_theme, NAV_ITEMS
+from views.ui import theme
 from views.components.sidebar import Sidebar
 from views.components.topbar import TopBar
 from views.pages import (
@@ -92,9 +93,8 @@ class MinimarketApp:
 
     def run(self) -> None:
         import os
-        assets_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "assets"
-        )
+
+        assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
         ft.run(self.main, assets_dir=assets_path)
 
     def main(self, page: ft.Page) -> None:
@@ -114,19 +114,17 @@ class MinimarketApp:
 
     def _apply_theme(self) -> None:
         set_theme(self.is_dark)
-        self.page.theme_mode = (
-            ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
-        )
-        self.page.bgcolor = T.PAGE_BG
+        self.page.theme_mode = ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
+        self.page.bgcolor = theme.T.PAGE_BG
         self.page.theme = ft.Theme(
             color_scheme=ft.ColorScheme(
-                primary=T.PRIMARY,
-                primary_container=T.PRIMARY_LIGHT,
+                primary=theme.T.PRIMARY,
+                primary_container=theme.T.PRIMARY_LIGHT,
                 secondary="#466270",
-                surface=T.CARD_BG,
+                surface=theme.T.CARD_BG,
                 on_primary=ft.Colors.WHITE,
                 on_secondary=ft.Colors.WHITE,
-                on_surface=T.TEXT_H,
+                on_surface=theme.T.TEXT_H,
             ),
             font_family="Inter",
         )
@@ -134,8 +132,28 @@ class MinimarketApp:
 
     def _toggle_theme(self) -> None:
         self.is_dark = not self.is_dark
-        self._apply_theme()
+        set_theme(self.is_dark)
+
+        self.page.theme_mode = ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
+        self.page.theme = ft.Theme(
+            color_scheme=ft.ColorScheme(
+                primary=theme.T.PRIMARY,
+                primary_container=theme.T.PRIMARY_LIGHT,
+                secondary="#466270",
+                surface=theme.T.CARD_BG,
+                on_primary=ft.Colors.WHITE,
+                on_secondary=ft.Colors.WHITE,
+                on_surface=theme.T.TEXT_H,
+            ),
+            font_family="Inter",
+        )
+        self.page.dark_theme = self.page.theme
+        self.page.bgcolor = theme.T.PAGE_BG
+        
+        # Clean and rebuild entire layout to ensure all components use new theme
         self.page.clean()
+        self.sidebar = None
+        self.content_area = None
         self._build_layout()
         self.page.update()
 
@@ -155,7 +173,7 @@ class MinimarketApp:
         self.content_area = ft.Container(
             expand=True,
             content=self.get_view(self.current_index),
-            bgcolor=T.PAGE_BG,
+            bgcolor=theme.T.PAGE_BG,
             padding=ft.Padding.symmetric(
                 horizontal=12 if self.is_mobile else 20,
                 vertical=12 if self.is_mobile else 16,
@@ -189,7 +207,7 @@ class MinimarketApp:
                     ft.Row(
                         controls=[
                             self.sidebar,
-                            ft.Container(width=0.5, bgcolor=T.DIVIDER),
+                            ft.Container(width=0.5, bgcolor=theme.T.DIVIDER),
                             self.content_area,
                         ],
                         spacing=0,
@@ -209,8 +227,8 @@ class MinimarketApp:
         page.navigation_bar = ft.NavigationBar(
             selected_index=mobile_index,
             on_change=self.on_mobile_navigation_change,
-            bgcolor=T.CARD_BG,
-            indicator_color=T.PRIMARY,
+            bgcolor=theme.T.CARD_BG,
+            indicator_color=theme.T.PRIMARY,
             height=65,
             destinations=[
                 ft.NavigationBarDestination(icon=ft.Icons.HOME, label="Inicio"),
@@ -224,7 +242,7 @@ class MinimarketApp:
         )
 
         header = ft.Container(
-            bgcolor=T.CARD_BG,
+            bgcolor=theme.T.CARD_BG,
             padding=ft.Padding.only(left=16, right=16, top=42, bottom=12),
             content=ft.Row(
                 [
@@ -234,12 +252,12 @@ class MinimarketApp:
                                 "Papelería Pro",
                                 size=18,
                                 weight=ft.FontWeight.W_800,
-                                color=T.TEXT_H,
+                                color=theme.T.TEXT_H,
                             ),
                             ft.Text(
                                 self._get_mobile_subtitle(),
                                 size=11,
-                                color=T.TEXT_MUTED,
+                                color=theme.T.TEXT_MUTED,
                             ),
                         ],
                         tight=True,
@@ -247,8 +265,10 @@ class MinimarketApp:
                     ),
                     ft.Container(expand=True),
                     ft.IconButton(
-                        icon=ft.Icons.LIGHT_MODE if self.is_dark else ft.Icons.DARK_MODE,
-                        icon_color=T.TEXT_H,
+                        icon=ft.Icons.LIGHT_MODE
+                        if self.is_dark
+                        else ft.Icons.DARK_MODE,
+                        icon_color=theme.T.TEXT_H,
                         on_click=lambda _: self._toggle_theme(),
                         tooltip="Cambiar tema",
                         scale=0.9,
@@ -277,7 +297,7 @@ class MinimarketApp:
         self.current_index = idx
         if self.content_area:
             self.content_area.content = self.get_view(idx)
-            self.content_area.bgcolor = T.PAGE_BG
+            self.content_area.bgcolor = theme.T.PAGE_BG
         if self.sidebar:
             self.sidebar.update_view(view_key)
         self.page.update()
@@ -285,9 +305,7 @@ class MinimarketApp:
     def on_mobile_navigation_change(self, e) -> None:
         selected_mobile_index = e.control.selected_index
         self.current_index = self.mobile_destinations[selected_mobile_index]
-        self.current_view_key = _INDEX_TO_VIEW_KEY.get(
-            self.current_index, "dashboard"
-        )
+        self.current_view_key = _INDEX_TO_VIEW_KEY.get(self.current_index, "dashboard")
         self.page.clean()
         self._build_layout()
         self.page.update()

@@ -106,12 +106,16 @@ class KardexView(ft.Container):
                             value,
                             size=24,
                             weight=ft.FontWeight.BOLD,
-                            color="#FFFFFF" if is_primary else AppTheme.TEXT_PRIMARY,
+                            color=AppTheme.CARD_BG
+                            if is_primary
+                            else AppTheme.TEXT_PRIMARY,
                         ),
                         ft.Text(
                             label,
                             size=10,
-                            color="#FFFFFF99" if is_primary else AppTheme.TEXT_MUTED,
+                            color=AppTheme.PRIMARY_LIGHT
+                            if is_primary
+                            else AppTheme.TEXT_MUTED,
                             weight=ft.FontWeight.W_600,
                         ),
                     ],
@@ -138,7 +142,7 @@ class KardexView(ft.Container):
     def _build_main_row(self) -> ft.Row:
         return ft.Row(
             [
-                ft.Container(self._build_form_section(), width=280),
+                ft.Container(self._build_form_section(), width=380),
                 ft.Container(self._build_history(), expand=True),
             ],
             spacing=14,
@@ -638,12 +642,16 @@ class KardexView(ft.Container):
                             value,
                             size=24,
                             weight=ft.FontWeight.BOLD,
-                            color="#FFFFFF" if is_primary else AppTheme.TEXT_PRIMARY,
+                            color=AppTheme.CARD_BG
+                            if is_primary
+                            else AppTheme.TEXT_PRIMARY,
                         ),
                         ft.Text(
                             label,
                             size=10,
-                            color="#FFFFFF99" if is_primary else AppTheme.TEXT_MUTED,
+                            color=AppTheme.PRIMARY_LIGHT
+                            if is_primary
+                            else AppTheme.TEXT_MUTED,
                             weight=ft.FontWeight.W_600,
                         ),
                     ],
@@ -986,10 +994,14 @@ class KardexView(ft.Container):
         movimientos = self.get_filtered_movimientos()
         if not movimientos:
             self.movimientos_container.controls = [
-                empty_state(
-                    "Sin movimientos registrados",
-                    "Registra el primer movimiento.",
-                    ft.Icons.SWAP_HORIZ_ROUNDED,
+                ft.Container(
+                    content=empty_state(
+                        "Sin movimientos registrados",
+                        "Registra el primer movimiento.",
+                        ft.Icons.SWAP_HORIZ_ROUNDED,
+                    ),
+                    alignment=ft.Alignment(0, 0),
+                    height=200,
                 )
             ]
             return
