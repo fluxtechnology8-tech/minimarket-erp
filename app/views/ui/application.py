@@ -1,8 +1,17 @@
+"""
+Main application shell.
+Desktop: Sidebar + TopBar layout (Papelería Pro style).
+Mobile:  NavigationBar (unchanged).
+"""
+
 from __future__ import annotations
 
 import flet as ft
 from core.init_db import init_db
-from views.ui.theme import AppTheme
+from views.ui.theme import AppTheme, LightPalette, DarkPalette, set_theme, NAV_ITEMS
+from views.ui import theme
+from views.components.sidebar import Sidebar
+from views.components.topbar import TopBar
 from views.pages import (
     BoletasView,
     DashboardView,
@@ -41,6 +50,11 @@ from controllers import (
 )
 
 
+# Map view-key strings to numeric indices
+_VIEW_KEY_TO_INDEX = {item[2]: item[3] for item in NAV_ITEMS}
+_INDEX_TO_VIEW_KEY = {v: k for k, v in _VIEW_KEY_TO_INDEX.items()}
+
+
 class MinimarketApp:
     def __init__(self):
         init_db()
@@ -67,11 +81,11 @@ class MinimarketApp:
         self.venta_controller = VentaController(venta_service)
         self.reporte_controller = ReporteController(reporte_service)
         self.sync_controller = SyncController(sync_service)
+
         self.page: ft.Page | None = None
         self.content_area: ft.Container | None = None
-        self.nav_rail: ft.NavigationRail | None = None
-        self.theme_toggle: ft.IconButton | None = None
-        self.current_view_control: ft.Control | None = None
+        self.sidebar: Sidebar | None = None
+        self.current_view_key = "dashboard"
         self.current_index = 0
         self.is_dark = False
         self.is_mobile = False
@@ -85,66 +99,65 @@ class MinimarketApp:
 
     def main(self, page: ft.Page) -> None:
         self.page = page
-        page.title = "Minimarket ERP"
-        page.theme = AppTheme.get_theme()
-        page.dark_theme = AppTheme.get_theme()
-        page.theme_mode = ft.ThemeMode.LIGHT
-        self._apply_theme()
+        page.title = "Papelería Pro — Gestión de Inventario"
         page.padding = 0
         page.spacing = 0
         page.appbar = None
         page.navigation_bar = None
         page.on_resized = self._on_resize
 
+        self._apply_theme()
         self._build_layout()
         page.update()
 
-    def _get_colors(self) -> dict:
-        palette = AppTheme.palette(self.is_dark)
-        return {
-            "bg": palette["BACKGROUND"],
-            "surface": palette["SURFACE"],
-            "surface_container": palette["SURFACE_CONTAINER"],
-            "surface_low": palette["SURFACE_CONTAINER_LOW"],
-            "surface_lowest": palette["SURFACE_CONTAINER_LOWEST"],
-            "text": palette["TEXT_PRIMARY"],
-            "text_secondary": palette["TEXT_SECONDARY"],
-            "accent": palette["ACCENT"],
-            "primary": palette["PRIMARY"],
-            "primary_container": palette["PRIMARY_CONTAINER"],
-        }
+    # ── Theme ────────────────────────────────
 
     def _apply_theme(self) -> None:
-        AppTheme.apply_mode(self.is_dark)
-        colors = self._get_colors()
-        theme = ft.Theme(
+        set_theme(self.is_dark)
+        self.page.theme_mode = ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
+        self.page.bgcolor = theme.T.PAGE_BG
+        self.page.theme = ft.Theme(
             color_scheme=ft.ColorScheme(
-                primary=AppTheme.PRIMARY,
-                primary_container=AppTheme.PRIMARY_CONTAINER,
+                primary=theme.T.PRIMARY,
+                primary_container=theme.T.PRIMARY_LIGHT,
                 secondary="#466270",
-                surface=colors["surface"],
+                surface=theme.T.CARD_BG,
                 on_primary=ft.Colors.WHITE,
                 on_secondary=ft.Colors.WHITE,
-                on_surface=colors["text"],
+                on_surface=theme.T.TEXT_H,
             ),
             font_family="Inter",
         )
-        self.page.theme = theme
-        self.page.dark_theme = theme
-        self.page.theme_mode = ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
-        self.page.bgcolor = colors["bg"]
+        self.page.dark_theme = self.page.theme
 
-    def _toggle_theme(self, e) -> None:
+    def _toggle_theme(self) -> None:
         self.is_dark = not self.is_dark
-        self._apply_theme()
-        if self.theme_toggle:
-            self.theme_toggle.icon = (
-                ft.Icons.LIGHT_MODE if self.is_dark else ft.Icons.DARK_MODE
-            )
+        set_theme(self.is_dark)
 
+        self.page.theme_mode = ft.ThemeMode.DARK if self.is_dark else ft.ThemeMode.LIGHT
+        self.page.theme = ft.Theme(
+            color_scheme=ft.ColorScheme(
+                primary=theme.T.PRIMARY,
+                primary_container=theme.T.PRIMARY_LIGHT,
+                secondary="#466270",
+                surface=theme.T.CARD_BG,
+                on_primary=ft.Colors.WHITE,
+                on_secondary=ft.Colors.WHITE,
+                on_surface=theme.T.TEXT_H,
+            ),
+            font_family="Inter",
+        )
+        self.page.dark_theme = self.page.theme
+        self.page.bgcolor = theme.T.PAGE_BG
+        
+        # Clean and rebuild entire layout to ensure all components use new theme
         self.page.clean()
+        self.sidebar = None
+        self.content_area = None
         self._build_layout()
         self.page.update()
+
+    # ── Resize ───────────────────────────────
 
     def _on_resize(self, e) -> None:
         next_is_mobile = self.page.width < 768 if self.page.width else True
@@ -153,12 +166,14 @@ class MinimarketApp:
             self._build_layout()
             self.page.update()
 
+    # ── Layout ───────────────────────────────
+
     def _build_layout(self) -> None:
         self.is_mobile = self.page.width < 768 if self.page.width else True
-        self.current_view_control = self.get_view(self.current_index)
         self.content_area = ft.Container(
             expand=True,
-            content=self.current_view_control,
+            content=self.get_view(self.current_index),
+            bgcolor=theme.T.PAGE_BG,
             padding=ft.Padding.symmetric(
                 horizontal=12 if self.is_mobile else 20,
                 vertical=12 if self.is_mobile else 16,
@@ -170,18 +185,50 @@ class MinimarketApp:
         else:
             self._build_desktop_layout()
 
+    def _build_desktop_layout(self) -> None:
+        page = self.page
+        page.appbar = None
+        page.navigation_bar = None
+        page.floating_action_button = None
+
+        topbar = TopBar(page)
+
+        self.sidebar = Sidebar(
+            page=page,
+            current_view=self.current_view_key,
+            on_navigate=self._navigate_by_key,
+            on_theme_toggle=self._toggle_theme,
+        )
+
+        page.add(
+            ft.Column(
+                controls=[
+                    topbar,
+                    ft.Row(
+                        controls=[
+                            self.sidebar,
+                            ft.Container(width=0.5, bgcolor=theme.T.DIVIDER),
+                            self.content_area,
+                        ],
+                        spacing=0,
+                        expand=True,
+                    ),
+                ],
+                spacing=0,
+                expand=True,
+            )
+        )
+
     def _build_mobile_layout(self) -> None:
         page = self.page
-        colors = self._get_colors()
-        mobile_index = self._get_mobile_nav_index()
-
         page.appbar = None
+        mobile_index = self._get_mobile_nav_index()
 
         page.navigation_bar = ft.NavigationBar(
             selected_index=mobile_index,
             on_change=self.on_mobile_navigation_change,
-            bgcolor=colors["surface"],
-            indicator_color=colors["primary"],
+            bgcolor=theme.T.CARD_BG,
+            indicator_color=theme.T.PRIMARY,
             height=65,
             destinations=[
                 ft.NavigationBarDestination(icon=ft.Icons.HOME, label="Inicio"),
@@ -194,193 +241,74 @@ class MinimarketApp:
             ],
         )
 
-        theme_btn = ft.IconButton(
-            icon=ft.Icons.LIGHT_MODE if self.is_dark else ft.Icons.DARK_MODE,
-            icon_color=colors["text"],
-            on_click=self._toggle_theme,
-            tooltip="Cambiar tema",
-            scale=0.9,
-        )
-        self.theme_toggle = theme_btn
-
         header = ft.Container(
-            bgcolor=colors["surface"],
+            bgcolor=theme.T.CARD_BG,
             padding=ft.Padding.only(left=16, right=16, top=42, bottom=12),
             content=ft.Row(
                 [
                     ft.Column(
                         [
                             ft.Text(
-                                "Minimarket ERP",
+                                "Papelería Pro",
                                 size=18,
                                 weight=ft.FontWeight.W_800,
-                                color=colors["text"],
+                                color=theme.T.TEXT_H,
                             ),
                             ft.Text(
                                 self._get_mobile_subtitle(),
                                 size=11,
-                                color=colors["text_secondary"],
+                                color=theme.T.TEXT_MUTED,
                             ),
                         ],
                         tight=True,
                         spacing=0,
                     ),
                     ft.Container(expand=True),
-                    theme_btn,
+                    ft.IconButton(
+                        icon=ft.Icons.LIGHT_MODE
+                        if self.is_dark
+                        else ft.Icons.DARK_MODE,
+                        icon_color=theme.T.TEXT_H,
+                        on_click=lambda _: self._toggle_theme(),
+                        tooltip="Cambiar tema",
+                        scale=0.9,
+                    ),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
-        page.floating_action_button = self._build_mobile_fab()
 
-        page.add(
-            ft.Column(
-                expand=True,
-                spacing=0,
-                controls=[
-                    header,
-                    self.content_area,
-                ],
-            )
-        )
-
-    def _build_desktop_layout(self) -> None:
-        page = self.page
-        colors = self._get_colors()
-        page.appbar = None
-        page.navigation_bar = None
         page.floating_action_button = None
-
-        theme_btn = ft.IconButton(
-            icon=ft.Icons.LIGHT_MODE if self.is_dark else ft.Icons.DARK_MODE,
-            icon_color=colors["text"],
-            on_click=self._toggle_theme,
-            tooltip="Cambiar tema",
-        )
-        self.theme_toggle = theme_btn
-
-        header = ft.Container(
-            padding=ft.Padding.symmetric(horizontal=20, vertical=10),
-            bgcolor=colors["surface"],
-            content=ft.Row(
-                [
-                    ft.Column(
-                        [
-                            ft.Text(
-                                "Minimarket ERP",
-                                size=18,
-                                weight=ft.FontWeight.W_800,
-                                color=colors["text"],
-                            ),
-                            ft.Text(
-                                "Gestion de inventario",
-                                size=9,
-                                color=colors["text_secondary"],
-                            ),
-                        ],
-                        tight=True,
-                    ),
-                    ft.Container(expand=True),
-                    ft.Container(
-                        padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-                        border_radius=16,
-                        bgcolor=colors["surface_low"],
-                        content=ft.Text(
-                            "Buscar...", size=12, color=colors["text_secondary"]
-                        ),
-                    ),
-                    ft.Container(width=8),
-                    ft.IconButton(
-                        icon=ft.Icons.NOTIFICATIONS_OUTLINED,
-                        icon_color=colors["text"],
-                        scale=0.85,
-                    ),
-                    theme_btn,
-                ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            ),
-        )
-
-        self.nav_rail = ft.NavigationRail(
-            selected_index=self.current_index,
-            label_type=ft.NavigationRailLabelType.ALL,
-            min_width=100,
-            min_extended_width=200,
-            group_alignment=-0.85,
-            bgcolor=colors["surface_container"],
-            indicator_color=colors["primary"],
-            on_change=self.on_navigation_change,
-            destinations=[
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.HOME_OUTLINED,
-                    selected_icon=ft.Icons.HOME,
-                    label="Dashboard",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.INVENTORY_2_OUTLINED,
-                    selected_icon=ft.Icons.INVENTORY_2,
-                    label="Productos",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.SWAP_HORIZ_OUTLINED,
-                    selected_icon=ft.Icons.SWAP_HORIZ,
-                    label="Kardex",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.RECEIPT_OUTLINED,
-                    selected_icon=ft.Icons.RECEIPT,
-                    label="Ventas",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.PAYMENTS_OUTLINED,
-                    selected_icon=ft.Icons.PAYMENTS,
-                    label="Gastos",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.QUERY_STATS_OUTLINED,
-                    selected_icon=ft.Icons.QUERY_STATS,
-                    label="Reportes",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.SYNC_OUTLINED,
-                    selected_icon=ft.Icons.SYNC,
-                    label="Sync",
-                ),
-            ],
-        )
-
         page.add(
             ft.Column(
-                [
-                    ft.Container(content=header, height=64),
-                    ft.Row(
-                        [self.nav_rail, self.content_area],
-                        expand=True,
-                        spacing=0,
-                    ),
-                ],
                 expand=True,
                 spacing=0,
+                controls=[header, self.content_area],
             )
         )
 
-    def on_navigation_change(self, e) -> None:
-        self.current_index = e.control.selected_index
-        if not self.content_area:
-            return
-        self.content_area.content = self.get_view(e.control.selected_index)
+    # ── Navigation ───────────────────────────
+
+    def _navigate_by_key(self, view_key: str) -> None:
+        """Called by the Sidebar when the user clicks a nav item."""
+        idx = _VIEW_KEY_TO_INDEX.get(view_key, 0)
+        self.current_view_key = view_key
+        self.current_index = idx
+        if self.content_area:
+            self.content_area.content = self.get_view(idx)
+            self.content_area.bgcolor = theme.T.PAGE_BG
+        if self.sidebar:
+            self.sidebar.update_view(view_key)
         self.page.update()
 
     def on_mobile_navigation_change(self, e) -> None:
         selected_mobile_index = e.control.selected_index
         self.current_index = self.mobile_destinations[selected_mobile_index]
+        self.current_view_key = _INDEX_TO_VIEW_KEY.get(self.current_index, "dashboard")
         self.page.clean()
         self._build_layout()
         self.page.update()
-
-    def _build_mobile_fab(self) -> ft.FloatingActionButton | None:
-        return None
 
     def _get_mobile_nav_index(self) -> int:
         if self.current_index in self.mobile_destinations:
@@ -396,6 +324,8 @@ class MinimarketApp:
             6: "Sincronización y respaldos",
         }
         return labels.get(self.current_index, "Panel móvil")
+
+    # ── View factory (unchanged logic) ───────
 
     def get_view(self, index: int) -> ft.Control:
         if not self.page:
