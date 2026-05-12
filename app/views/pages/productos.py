@@ -29,11 +29,10 @@ class ProductosView(ft.Container):
         self.kardex_controller = kardex_controller
         self.is_mobile = is_mobile
         self.search_text = ""
-        self.list_view = ft.GridView(
+        self.list_view = ft.ListView(
             expand=True,
             spacing=12,
-            run_spacing=12,
-            max_extent=200 if is_mobile else 220,
+            padding=10,
         )
         self.search_field = ft.TextField(
             prefix_icon=ft.Icons.SEARCH_ROUNDED,
@@ -233,33 +232,49 @@ class ProductosView(ft.Container):
             ]
             return
 
-        cards: list[ft.Control] = []
-        for producto in productos:
-            stock = int(producto["stock"] or 0)
-            minimo = int(producto["stock_minimo"] or 0)
-            stock_color = (
-                AppTheme.SUCCESS
-                if stock > minimo
-                else AppTheme.WARNING
-                if stock > 0
-                else AppTheme.DANGER
-            )
-            stock_text = f"{stock} en stock" if stock > 0 else "Agotado"
-            stock_bg = (
-                AppTheme.SUCCESS_LT
-                if stock > minimo
-                else AppTheme.WARNING_LT
-                if stock > 0
-                else AppTheme.DANGER_LT
-            )
-
-            cards.append(
-                self._build_product_card(
-                    producto, stock, stock_color, stock_text, stock_bg
+        rows = []
+        cards_per_row = 3
+        for i in range(0, len(productos), cards_per_row):
+            row_products = productos[i : i + cards_per_row]
+            cards = []
+            for producto in row_products:
+                stock = int(producto["stock"] or 0)
+                minimo = int(producto["stock_minimo"] or 0)
+                stock_color = (
+                    AppTheme.SUCCESS
+                    if stock > minimo
+                    else AppTheme.WARNING
+                    if stock > 0
+                    else AppTheme.DANGER
                 )
-            )
+                stock_text = f"{stock} en stock" if stock > 0 else "Agotado"
+                stock_bg = (
+                    AppTheme.SUCCESS_LT
+                    if stock > minimo
+                    else AppTheme.WARNING_LT
+                    if stock > 0
+                    else AppTheme.DANGER_LT
+                )
+                cards.append(
+                    self._build_product_card(
+                        producto, stock, stock_color, stock_text, stock_bg
+                    )
+                )
+            rows.append(ft.Row(controls=cards, spacing=14, expand=True))
 
-        self.list_view.controls = cards
+        if not rows:
+            rows = [
+                ft.Container(
+                    content=empty_state(
+                        "No hay productos para mostrar",
+                        "Agrega el primer producto o ajusta la búsqueda.",
+                    ),
+                    alignment=ft.Alignment(0, 0),
+                    height=350,
+                )
+            ]
+
+        self.list_view.controls = rows
 
     def _build_product_card(
         self,
@@ -280,24 +295,33 @@ class ProductosView(ft.Container):
 
         if producto_imagen:
             image_section = ft.Container(
-                height=90,
+                height=110,
+                bgcolor=AppTheme.INPUT_BG,
                 border_radius=ft.BorderRadius(AppTheme.R_LG, AppTheme.R_LG, 0, 0),
                 clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                content=ft.Image(
-                    src=producto_imagen,
-                    fit=ft.BoxFit.COVER,
-                    width=200,
-                    height=90,
+                content=ft.Stack(
+                    controls=[
+                        ft.Container(bgcolor=AppTheme.PRIMARY_LIGHT, height=110),
+                        ft.Container(
+                            content=ft.Image(
+                                src=producto_imagen,
+                                fit=ft.BoxFit.CONTAIN,
+                                width=200,
+                                height=110,
+                            ),
+                            alignment=ft.Alignment(0, 0),
+                        ),
+                    ]
                 ),
             )
         else:
             image_section = ft.Container(
-                height=90,
+                height=110,
                 bgcolor=AppTheme.PRIMARY_LIGHT,
                 border_radius=ft.BorderRadius(AppTheme.R_LG, AppTheme.R_LG, 0, 0),
                 content=ft.Icon(
                     ft.Icons.INVENTORY_2_OUTLINED,
-                    size=40,
+                    size=48,
                     color=AppTheme.PRIMARY,
                 ),
                 alignment=ft.Alignment(0, 0),
@@ -312,24 +336,24 @@ class ProductosView(ft.Container):
                             [
                                 ft.Text(
                                     producto["nombre"],
-                                    size=13,
+                                    size=14,
                                     weight=ft.FontWeight.BOLD,
                                     color=AppTheme.TEXT_PRIMARY,
                                     max_lines=2,
                                 ),
                                 ft.Text(
                                     f"SKU: {producto['codigo']}",
-                                    size=11,
+                                    size=12,
                                     color=AppTheme.TEXT_MUTED,
                                 ),
-                                ft.Container(height=4),
+                                ft.Container(height=6),
                                 ft.Row(
                                     [
                                         ft.Text(
                                             money(float(precio))
                                             if precio and float(precio) > 0
                                             else "Sin precio",
-                                            size=18,
+                                            size=20,
                                             weight=ft.FontWeight.BOLD
                                             if precio and float(precio) > 0
                                             else ft.FontWeight.W_400,
@@ -342,7 +366,7 @@ class ProductosView(ft.Container):
                                     ],
                                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                                 ),
-                                ft.Container(height=8),
+                                ft.Container(height=12),
                                 ft.Row(
                                     [
                                         ft.Container(
@@ -350,35 +374,38 @@ class ProductosView(ft.Container):
                                                 [
                                                     ft.Icon(
                                                         ft.Icons.EDIT_ROUNDED,
-                                                        size=14,
+                                                        size=16,
                                                         color=AppTheme.PRIMARY,
                                                     ),
                                                     ft.Text(
                                                         "Editar",
-                                                        size=11,
-                                                        weight=ft.FontWeight.W_500,
+                                                        size=12,
+                                                        weight=ft.FontWeight.W_600,
                                                         color=AppTheme.PRIMARY,
                                                     ),
                                                 ],
-                                                spacing=4,
+                                                spacing=6,
                                                 tight=True,
                                             ),
                                             bgcolor=AppTheme.PRIMARY_LIGHT,
                                             border_radius=AppTheme.R_PILL,
                                             padding=ft.padding.symmetric(
-                                                horizontal=12, vertical=6
+                                                horizontal=16, vertical=10
                                             ),
                                             on_click=on_edit,
+                                            expand=1,
+                                            alignment=ft.Alignment(0, 0),
                                         ),
+                                        ft.Container(width=8),
                                         ft.Container(
                                             content=ft.Icon(
-                                                ft.Icons.MORE_VERT_ROUNDED,
-                                                color=AppTheme.TEXT_MUTED,
-                                                size=16,
+                                                ft.Icons.DELETE_OUTLINE_ROUNDED,
+                                                color=AppTheme.DANGER,
+                                                size=18,
                                             ),
-                                            width=32,
-                                            height=32,
-                                            bgcolor=AppTheme.INPUT_BG,
+                                            width=38,
+                                            height=38,
+                                            bgcolor=AppTheme.DANGER_LT,
                                             border=ft.Border.all(
                                                 0.5, AppTheme.CARD_BORDER
                                             ),
@@ -389,9 +416,9 @@ class ProductosView(ft.Container):
                                     ],
                                 ),
                             ],
-                            spacing=3,
+                            spacing=2,
                         ),
-                        padding=12,
+                        padding=16,
                     ),
                 ],
                 spacing=0,
@@ -400,7 +427,7 @@ class ProductosView(ft.Container):
             border_radius=AppTheme.R_LG,
             border=ft.Border.all(0.5, AppTheme.CARD_BORDER),
             shadow=shadow(AppTheme.PRIMARY, 6, 2),
-            expand=1,
+            width=240,
             ink=True,
         )
 
@@ -709,7 +736,11 @@ class ProductosView(ft.Container):
             ),
             actions=[
                 ft.TextButton("Cancelar", on_click=on_cancel),
-                ft.TextButton("Eliminar", on_click=on_confirm, color=AppTheme.DANGER),
+                ft.TextButton(
+                    "Eliminar",
+                    on_click=on_confirm,
+                    style=ft.ButtonStyle(color=AppTheme.DANGER),
+                ),
             ],
         )
         self._page.show_dialog(dialog)
