@@ -13,20 +13,25 @@ from views.ui.theme import shadow
 class TopBar(ft.Container):
     """Rich top bar matching the main2.py Papelería Pro design."""
 
-    def __init__(self, page: ft.Page):
+    def __init__(self, page: ft.Page, usuario=None, on_logout=None):
         super().__init__()
-        # Access T dynamically to get current theme at construction time
         T = theme.T
+
+        nombre_usuario = usuario.get("nombre", "Usuario") if usuario else "Usuario"
+        rol_usuario = usuario.get("rol", "") if usuario else ""
+        iniciales = nombre_usuario[:2].upper()
+
+        rol_display = "Administrador" if rol_usuario == "admin" else "Empleado"
+
         self.content = ft.Row(
             controls=[
-                # ── Brand ──
                 ft.Row(
                     controls=[
                         ft.Icon(ft.Icons.STOREFRONT_ROUNDED, color=T.PRIMARY, size=20),
                         ft.Column(
                             controls=[
                                 ft.Text(
-                                    "Papelería Pro",
+                                    "Minimarket ERP",
                                     size=14,
                                     weight=ft.FontWeight.BOLD,
                                     color=T.TEXT_H,
@@ -41,7 +46,6 @@ class TopBar(ft.Container):
                     spacing=8,
                 ),
                 ft.Container(expand=True),
-                # ── Search (decorative) ──
                 ft.Container(
                     content=ft.Row(
                         controls=[
@@ -63,10 +67,8 @@ class TopBar(ft.Container):
                     width=320,
                 ),
                 ft.Container(expand=True),
-                # ── Right controls ──
                 ft.Row(
                     controls=[
-                        # Notification bell
                         ft.Stack(
                             controls=[
                                 ft.Container(
@@ -94,7 +96,6 @@ class TopBar(ft.Container):
                             width=36,
                             height=36,
                         ),
-                        # Settings
                         ft.Container(
                             content=ft.Icon(
                                 ft.Icons.SETTINGS_OUTLINED, color=T.TEXT_MUTED, size=18
@@ -106,13 +107,12 @@ class TopBar(ft.Container):
                             border_radius=T.R_PILL,
                             alignment=ft.Alignment(0, 0),
                         ),
-                        # User avatar
                         ft.Container(
                             content=ft.Row(
                                 controls=[
                                     ft.Container(
                                         content=ft.Text(
-                                            "AD",
+                                            iniciales,
                                             size=11,
                                             weight=ft.FontWeight.BOLD,
                                             color=T.CARD_BG,
@@ -126,18 +126,27 @@ class TopBar(ft.Container):
                                     ft.Column(
                                         controls=[
                                             ft.Text(
-                                                "Admin Papelería",
+                                                nombre_usuario,
                                                 size=12,
                                                 weight=ft.FontWeight.W_600,
                                                 color=T.TEXT_H,
                                             ),
                                             ft.Text(
-                                                "Gerente de Tienda",
+                                                rol_display,
                                                 size=10,
                                                 color=T.TEXT_MUTED,
                                             ),
                                         ],
                                         spacing=0,
+                                    ),
+                                    ft.Container(
+                                        content=ft.IconButton(
+                                            icon=ft.Icons.LOGOUT,
+                                            icon_size=16,
+                                            icon_color=T.TEXT_MUTED,
+                                            on_click=on_logout,
+                                            tooltip="Cerrar sesión",
+                                        ),
                                     ),
                                 ],
                                 spacing=8,

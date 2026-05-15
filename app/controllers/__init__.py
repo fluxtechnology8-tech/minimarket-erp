@@ -4,6 +4,7 @@ from .gasto_controller import GastoController
 from .venta_controller import VentaController
 from .reporte_controller import ReporteController
 from .sync_controller import SyncController
+from .auth_controller import AuthController
 
 __all__ = [
     "ProductoController",
@@ -12,4 +13,5 @@ __all__ = [
     "VentaController",
     "ReporteController",
     "SyncController",
+    "AuthController",
 ]

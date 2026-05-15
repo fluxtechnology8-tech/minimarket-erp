@@ -20,6 +20,7 @@ from views.pages import (
     ProductosView,
     ReportesView,
     SyncView,
+    LoginView,
 )
 
 from repositories import (
@@ -29,6 +30,7 @@ from repositories import (
     VentaRepository,
     ReporteRepository,
     SyncRepository,
+    UsuarioRepository,
 )
 
 from services import (
@@ -38,6 +40,7 @@ from services import (
     VentaService,
     ReporteService,
     SyncService,
+    AuthService,
 )
 
 from controllers import (
@@ -47,6 +50,7 @@ from controllers import (
     VentaController,
     ReporteController,
     SyncController,
+    AuthController,
 )
 
 
@@ -67,6 +71,7 @@ class MinimarketApp:
         venta_repo = VentaRepository()
         reporte_repo = ReporteRepository()
         sync_repo = SyncRepository()
+        usuario_repo = UsuarioRepository()
 
         producto_service = ProductoService(producto_repo, kardex_repo)
         kardex_service = KardexService(kardex_repo, producto_repo)
@@ -74,6 +79,7 @@ class MinimarketApp:
         venta_service = VentaService(venta_repo, producto_repo, kardex_repo)
         reporte_service = ReporteService(reporte_repo)
         sync_service = SyncService(sync_repo)
+        auth_service = AuthService(usuario_repo)
 
         self.producto_controller = ProductoController(producto_service)
         self.kardex_controller = KardexController(kardex_service)
@@ -81,6 +87,7 @@ class MinimarketApp:
         self.venta_controller = VentaController(venta_service)
         self.reporte_controller = ReporteController(reporte_service)
         self.sync_controller = SyncController(sync_service)
+        self.auth_controller = AuthController(auth_service)
 
         self.page: ft.Page | None = None
         self.content_area: ft.Container | None = None
@@ -91,6 +98,10 @@ class MinimarketApp:
         self.is_mobile = False
         self.mobile_destinations = [0, 1, 2, 4, 6]
 
+        self.usuario_actual = None
+        self.login_view = None
+        self.logged_in = False
+
     def run(self) -> None:
         import os
 
@@ -99,7 +110,7 @@ class MinimarketApp:
 
     def main(self, page: ft.Page) -> None:
         self.page = page
-        page.title = "Papelería Pro — Gestión de Inventario"
+        page.title = "Minimarket ERP"
         page.padding = 0
         page.spacing = 0
         page.appbar = None
@@ -107,8 +118,23 @@ class MinimarketApp:
         page.on_resized = self._on_resize
 
         self._apply_theme()
-        self._build_layout()
+        self._show_login()
         page.update()
+
+    def _show_login(self) -> None:
+        self.page.clean()
+        self.login_view = LoginView(
+            on_login_success=self._on_login_success,
+            auth_controller=self.auth_controller,
+        )
+        self.page.add(self.login_view)
+
+    def _on_login_success(self, usuario: dict) -> None:
+        self.usuario_actual = usuario
+        self.logged_in = True
+        self.page.clean()
+        self._build_layout()
+        self.page.update()
 
     # ── Theme ────────────────────────────────
 
@@ -149,7 +175,7 @@ class MinimarketApp:
         )
         self.page.dark_theme = self.page.theme
         self.page.bgcolor = theme.T.PAGE_BG
-        
+
         # Clean and rebuild entire layout to ensure all components use new theme
         self.page.clean()
         self.sidebar = None
@@ -191,7 +217,7 @@ class MinimarketApp:
         page.navigation_bar = None
         page.floating_action_button = None
 
-        topbar = TopBar(page)
+        topbar = TopBar(page, usuario=self.usuario_actual, on_logout=self._logout)
 
         self.sidebar = Sidebar(
             page=page,
@@ -218,6 +244,12 @@ class MinimarketApp:
                 expand=True,
             )
         )
+
+    def _logout(self, e) -> None:
+        self.logged_in = False
+        self.usuario_actual = None
+        self._show_login()
+        self.page.update()
 
     def _build_mobile_layout(self) -> None:
         page = self.page

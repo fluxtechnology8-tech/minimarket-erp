@@ -1,6 +1,8 @@
 # Entorno virtual
 venv/
 .env
+main2.py
+main3.py
 
 # Python cache
 **pycache**/

@@ -1,17 +1,11 @@
 """
 Minimarket ERP v3 — Estilo Papelería Pro
-Basado en las pantallas de referencia:
-  - Dashboard con métricas, gráfico de barras, top productos, stock crítico
-  - Catálogo con grid de tarjetas
-  - Kardex con formulario + tabla + alertas
-  - Gastos con formulario lateral + lista de gastos recientes
-  - Ventas/Boletas con grid de productos + carrito lateral
-  - Reportes con analítica, gráficos, márgenes
-  - Sincronización con historial y uso de almacenamiento
+Con módulo Asistente IA integrado (Claude via Anthropic API)
 """
 
 import flet as ft
-from typing import Callable
+
+import threading
 from datetime import datetime
 
 
@@ -326,6 +320,7 @@ NAV_ITEMS = [
     ("Gastos",         ft.Icons.ACCOUNT_BALANCE_WALLET_OUTLINED, "gastos"),
     ("Boletas",        ft.Icons.RECEIPT_LONG_OUTLINED,           "boletas"),
     ("Reportes",       ft.Icons.BAR_CHART_ROUNDED,               "reportes"),
+    ("Asistente IA",   ft.Icons.SMART_TOY_OUTLINED,              "asistente"),
     ("Sincronización", ft.Icons.SYNC_ROUNDED,                    "sync"),
 ]
 
@@ -376,6 +371,18 @@ class Sidebar(ft.Container):
             text_color = T.SIDEBAR_TEXT_ACT if active else T.SIDEBAR_TEXT
             bg = ft.Colors.with_opacity(0.15, "#FFFFFF") if active else "transparent"
 
+            # Special AI badge
+            extra = []
+            if key == "asistente" and self._expanded:
+                extra = [
+                    ft.Container(
+                        content=ft.Text("IA", size=8, weight=ft.FontWeight.W_700, color="#FFFFFF"),
+                        bgcolor=T.ACCENT_CYAN,
+                        padding=ft.padding.symmetric(horizontal=5, vertical=1),
+                        border_radius=T.R_PILL,
+                    )
+                ]
+
             row_ctrl = [
                 ft.Container(
                     content=ft.Icon(icon, color=icon_color, size=18),
@@ -387,8 +394,10 @@ class Sidebar(ft.Container):
             if self._expanded:
                 row_ctrl.append(
                     ft.Text(label, color=text_color, size=13,
-                            weight=ft.FontWeight.W_700 if active else ft.FontWeight.W_400)
+                            weight=ft.FontWeight.W_700 if active else ft.FontWeight.W_400,
+                            expand=True)
                 )
+                row_ctrl.extend(extra)
 
             left_accent = ft.Container(
                 width=3, height=28,
@@ -419,7 +428,6 @@ class Sidebar(ft.Container):
             )
             items.append(item)
 
-        # Botón usuario abajo
         user_row = ft.Container(
             content=ft.Row(
                 controls=[
@@ -447,7 +455,6 @@ class Sidebar(ft.Container):
             padding=ft.padding.symmetric(horizontal=10, vertical=10),
         )
 
-        # Toggle tema + colapsar
         bottom_controls = [
             ft.Container(
                 content=ft.Row(
@@ -535,13 +542,542 @@ class Sidebar(ft.Container):
 
 
 # ─────────────────────────────────────────────
+# VISTA: ASISTENTE IA  (nueva)
+# ─────────────────────────────────────────────
+SYSTEM_PROMPT = """Eres el Asistente de Inteligencia Artificial de Papelería Pro, un ERP moderno para gestión de minimarkets y papelerías.
+
+Tu rol es ayudar al administrador con:
+- Consultas sobre inventario y stock de productos (cuadernos, bolígrafos, papel, tinta, etc.)
+- Análisis de ventas y reportes del negocio
+- Registro y seguimiento de gastos
+- Gestión de proveedores y pedidos
+- Consejos de optimización para la papelería
+- Explicar cómo usar las funciones del sistema (Kardex, Boletas, Catálogo, etc.)
+
+Contexto del negocio:
+- Nombre: Papelería Pro
+- Productos principales: útiles escolares, artículos de oficina, papelería fina, materiales de arte
+- Moneda local: Soles peruanos (S/)
+- El sistema tiene módulos de: Dashboard, Catálogo, Kardex, Gastos, Boletas, Reportes y Sincronización
+
+Responde siempre en español, de forma amigable, concisa y profesional. 
+Cuando des cifras o ejemplos, usa el contexto de una papelería peruana.
+Si te preguntan sobre stock específico que no conoces, indícalo honestamente y sugiere revisar el módulo de Catálogo o Kardex."""
+
+
+class AsistenteIAView(ft.Container):
+    def __init__(self, page: ft.Page):
+        super().__init__()
+        self._page = page
+        self._messages = []          # [{role, content}]
+        self._thinking = False
+
+        # ── Área de mensajes ──
+        self._chat_list = ft.ListView(
+            expand=True,
+            spacing=12,
+            padding=ft.padding.symmetric(horizontal=4, vertical=8),
+            auto_scroll=True,
+        )
+
+        # ── Input ──
+        self._input = ft.TextField(
+            hint_text="Escribe tu consulta aquí (ej: 'Muestra ventas de ayer')...",
+            hint_style=ft.TextStyle(color=T.TEXT_DISABLED, size=13),
+            border_radius=T.R_PILL,
+            border_color=T.INPUT_BORDER,
+            focused_border_color=T.INPUT_FOCUSED,
+            fill_color=T.CARD_BG,
+            filled=True,
+            expand=True,
+            multiline=False,
+            content_padding=ft.padding.symmetric(horizontal=20, vertical=14),
+            on_submit=self._on_send,
+            text_style=ft.TextStyle(color=T.TEXT_H, size=13),
+        )
+
+        send_btn = ft.Container(
+            content=ft.Icon(ft.Icons.SEND_ROUNDED, color="#FFFFFF", size=18),
+            bgcolor=T.PRIMARY,
+            width=46, height=46,
+            border_radius=T.R_PILL,
+            alignment=ft.Alignment(0, 0),
+            ink=True,
+            on_click=self._on_send,
+            shadow=shadow(T.PRIMARY, 10, 3),
+        )
+
+        # ── Chips de acceso rápido ──
+        quick_chips = ft.Row(
+            controls=[
+                self._chip("📦 Ver stock bajo", "¿Qué productos tienen stock bajo?"),
+                self._chip("💰 Resumen de caja", "Dame un resumen de las ventas del día"),
+                self._chip("📊 Margen de ganancia", "¿Cuál es el margen de ganancia promedio?"),
+                self._chip("🔔 Alertas activas", "¿Cuáles son las alertas activas del sistema?"),
+            ],
+            wrap=True,
+            spacing=8,
+            run_spacing=8,
+        )
+
+        # ── Header del chat ──
+        header = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Container(
+                        content=ft.Stack(
+                            controls=[
+                                ft.Container(
+                                    content=ft.Icon(ft.Icons.SMART_TOY_ROUNDED,
+                                                    color="#FFFFFF", size=20),
+                                    bgcolor=T.PRIMARY,
+                                    width=44, height=44,
+                                    border_radius=T.R_PILL,
+                                    alignment=ft.Alignment(0, 0),
+                                ),
+                                ft.Container(
+                                    width=12, height=12,
+                                    bgcolor=T.SUCCESS,
+                                    border_radius=T.R_PILL,
+                                    border=ft.Border.all(2, T.CARD_BG),
+                                    right=0, bottom=0,
+                                ),
+                            ],
+                            width=44, height=44,
+                        ),
+                    ),
+                    ft.Column(
+                        controls=[
+                            ft.Text("Asistente de Inteligencia Artificial",
+                                    size=15, weight=ft.FontWeight.BOLD, color=T.TEXT_H),
+                            ft.Row(
+                                controls=[
+                                    ft.Container(
+                                        width=7, height=7,
+                                        bgcolor=T.SUCCESS,
+                                        border_radius=T.R_PILL,
+                                    ),
+                                    ft.Text("En línea • Papelería Pro IA",
+                                            size=11, color=T.TEXT_MUTED),
+                                ],
+                                spacing=5,
+                            ),
+                        ],
+                        spacing=2,
+                        expand=True,
+                    ),
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.Container(
+                                    content=ft.Icon(ft.Icons.DELETE_OUTLINE_ROUNDED,
+                                                    color=T.TEXT_MUTED, size=16),
+                                    width=34, height=34,
+                                    bgcolor=T.INPUT_BG,
+                                    border=ft.Border.all(0.5, T.CARD_BORDER),
+                                    border_radius=T.R_PILL,
+                                    alignment=ft.Alignment(0, 0),
+                                    ink=True,
+                                    on_click=self._clear_chat,
+                                    tooltip="Limpiar conversación",
+                                ),
+                            ],
+                            spacing=8,
+                        ),
+                    ),
+                ],
+                spacing=12,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            bgcolor=T.CARD_BG,
+            border=ft.Border(bottom=ft.BorderSide(0.5, T.CARD_BORDER)),
+            padding=ft.padding.symmetric(horizontal=20, vertical=14),
+            border_radius=ft.BorderRadius(T.R_LG, T.R_LG, 0, 0),
+        )
+
+        # Footer del input
+        footer_bar = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            self._input,
+                            ft.Container(width=8),
+                            send_btn,
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    ft.Container(height=6),
+                    ft.Row(
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.LOCK_OUTLINE_ROUNDED,
+                                            color=T.TEXT_DISABLED, size=12),
+                                    ft.Text("Encriptación de extremo a extremo",
+                                            size=10, color=T.TEXT_DISABLED),
+                                ],
+                                spacing=4,
+                            ),
+                            ft.Container(width=14),
+                            ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.HISTORY_ROUNDED,
+                                            color=T.TEXT_DISABLED, size=12),
+                                    ft.Text("Historial guardado",
+                                            size=10, color=T.TEXT_DISABLED),
+                                ],
+                                spacing=4,
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
+                ],
+                spacing=0,
+            ),
+            bgcolor=T.CARD_BG,
+            border=ft.Border(top=ft.BorderSide(0.5, T.CARD_BORDER)),
+            padding=ft.padding.symmetric(horizontal=16, vertical=12),
+            border_radius=ft.BorderRadius(0, 0, T.R_LG, T.R_LG),
+        )
+
+        # Sidebar derecho con info y chips
+        right_panel = ft.Container(
+            content=ft.Column(
+                controls=[
+                    card(ft.Column(
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.BOLT_ROUNDED, color=T.WARNING, size=16),
+                                    ft.Text("Accesos Rápidos", size=13,
+                                            weight=ft.FontWeight.BOLD, color=T.TEXT_H),
+                                ],
+                                spacing=6,
+                            ),
+                            ft.Container(height=10),
+                            quick_chips,
+                        ],
+                    )),
+                    ft.Container(height=12),
+                    card(ft.Column(
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED,
+                                            color=T.INFO, size=16),
+                                    ft.Text("Capacidades IA", size=13,
+                                            weight=ft.FontWeight.BOLD, color=T.TEXT_H),
+                                ],
+                                spacing=6,
+                            ),
+                            ft.Container(height=10),
+                            *[self._capability_row(icon, label) for icon, label in [
+                                ("📦", "Consulta de inventario en tiempo real"),
+                                ("📊", "Análisis de ventas y reportes"),
+                                ("💸", "Seguimiento de gastos"),
+                                ("🛒", "Gestión de proveedores"),
+                                ("💡", "Consejos de optimización"),
+                                ("🔔", "Alertas y notificaciones"),
+                            ]],
+                        ],
+                        spacing=0,
+                    )),
+                    ft.Container(height=12),
+                    ft.Container(
+                        content=ft.Column(
+                            controls=[
+                                ft.Text("Impulsado por", size=10,
+                                        color=ft.Colors.with_opacity(0.6, "#FFFFFF"),
+                                        weight=ft.FontWeight.W_600),
+                                ft.Text("Claude AI", size=16,
+                                        color="#FFFFFF",
+                                        weight=ft.FontWeight.BOLD),
+                                ft.Text("Anthropic", size=10,
+                                        color=ft.Colors.with_opacity(0.7, "#FFFFFF")),
+                            ],
+                            spacing=2,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        bgcolor=T.SIDEBAR_BG,
+                        border_radius=T.R_LG,
+                        padding=ft.padding.symmetric(horizontal=16, vertical=14),
+                        alignment=ft.Alignment(0, 0),
+                    ),
+                ],
+                spacing=0,
+            ),
+            width=250,
+        )
+
+        # Layout principal del chat
+        chat_area = ft.Container(
+            content=ft.Column(
+                controls=[
+                    header,
+                    ft.Container(
+                        content=self._chat_list,
+                        expand=True,
+                        bgcolor=T.PAGE_BG,
+                        padding=ft.padding.symmetric(horizontal=16, vertical=8),
+                    ),
+                    footer_bar,
+                ],
+                spacing=0,
+                expand=True,
+            ),
+            expand=True,
+            border_radius=T.R_LG,
+            border=ft.Border.all(0.5, T.CARD_BORDER),
+            shadow=shadow(T.PRIMARY, 8, 2),
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+        )
+
+        self.content = ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        section_header("Asistente de IA",
+                                       "Consulta, analiza y gestiona tu papelería con inteligencia artificial."),
+                        ft.Container(expand=True),
+                        badge("CLAUDE AI", T.PRIMARY, T.PRIMARY_LIGHT),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                ft.Container(height=16),
+                ft.Row(
+                    controls=[
+                        chat_area,
+                        ft.Container(width=14),
+                        right_panel,
+                    ],
+                    expand=True,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                ),
+            ],
+            expand=True,
+        )
+        self.padding = 24
+        self.expand = True
+        self.bgcolor = T.PAGE_BG
+
+        # Mensaje de bienvenida
+        self._add_ai_bubble(
+            "¡Hola! Soy tu asistente de **Papelería Pro**. Estoy aquí para ayudarte a gestionar "
+            "tu negocio de forma eficiente.\n\n"
+            "¿Te gustaría consultar el stock actual, revisar el reporte de ventas del día "
+            "o quizás necesitas ayuda para registrar un nuevo proveedor?"
+        )
+
+    # ── helpers de UI ──
+
+    def _chip(self, label, query):
+        return ft.Container(
+            content=ft.Text(label, size=11, color=T.PRIMARY, weight=ft.FontWeight.W_600),
+            bgcolor=T.PRIMARY_LIGHT,
+            border=ft.Border.all(0.5, ft.Colors.with_opacity(0.4, T.PRIMARY)),
+            border_radius=T.R_PILL,
+            padding=ft.padding.symmetric(horizontal=12, vertical=6),
+            ink=True,
+            on_click=lambda e, q=query: self._quick_send(q),
+        )
+
+    def _capability_row(self, icon, label):
+        return ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Text(icon, size=14),
+                    ft.Text(label, size=11, color=T.TEXT_BODY, expand=True),
+                ],
+                spacing=8,
+            ),
+            padding=ft.padding.symmetric(vertical=4),
+        )
+
+    def _add_user_bubble(self, text: str):
+        now = datetime.now().strftime("%I:%M %p")
+        bubble = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Container(expand=True),
+                            ft.Container(
+                                content=ft.Text(text, size=13, color="#FFFFFF",
+                                                selectable=True),
+                                bgcolor=T.PRIMARY,
+                                border_radius=ft.BorderRadius(T.R_LG, T.R_LG, 4, T.R_LG),
+                                padding=ft.padding.symmetric(horizontal=16, vertical=12),
+                                shadow=shadow(T.PRIMARY, 6, 2),
+                            ),
+                            ft.Container(
+                                content=ft.Icon(ft.Icons.PERSON_ROUNDED,
+                                                color=T.TEXT_MUTED, size=16),
+                                bgcolor=T.INPUT_BG,
+                                border=ft.Border.all(0.5, T.CARD_BORDER),
+                                width=32, height=32,
+                                border_radius=T.R_PILL,
+                                alignment=ft.Alignment(0, 0),
+                            ),
+                        ],
+                        spacing=10,
+                        vertical_alignment=ft.CrossAxisAlignment.END,
+                    ),
+                    ft.Row(
+                        controls=[
+                            ft.Container(expand=True),
+                            ft.Text(f"Enviado a las {now}", size=10, color=T.TEXT_DISABLED),
+                            ft.Container(width=42),
+                        ],
+                    ),
+                ],
+                spacing=4,
+            ),
+        )
+        self._chat_list.controls.append(bubble)
+
+    def _add_ai_bubble(self, text: str, thinking=False):
+        if thinking:
+            content_widget = ft.Row(
+                controls=[
+                    ft.ProgressRing(width=14, height=14, stroke_width=2, color=T.PRIMARY),
+                    ft.Text("Consultando inventario en tiempo real...",
+                            size=12, color=T.TEXT_MUTED, italic=True),
+                ],
+                spacing=10,
+            )
+        else:
+            # Render markdown-lite: bold (**text**)
+            parts = []
+            segments = text.split("**")
+            for i, seg in enumerate(segments):
+                if seg:
+                    parts.append(ft.TextSpan(
+                        text=seg,
+                        style=ft.TextStyle(
+                            weight=ft.FontWeight.BOLD if i % 2 == 1 else ft.FontWeight.NORMAL,
+                            size=13,
+                            color=T.TEXT_H,
+                        ),
+                    ))
+            content_widget = ft.Text(spans=parts, selectable=True)
+
+        bubble = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Container(
+                        content=ft.Icon(ft.Icons.SMART_TOY_ROUNDED, color="#FFFFFF", size=16),
+                        bgcolor=T.PRIMARY,
+                        width=32, height=32,
+                        border_radius=T.R_PILL,
+                        alignment=ft.Alignment(0, 0),
+                    ),
+                    ft.Container(
+                        content=content_widget,
+                        bgcolor=T.CARD_BG,
+                        border_radius=ft.BorderRadius(4, T.R_LG, T.R_LG, T.R_LG),
+                        padding=ft.padding.symmetric(horizontal=16, vertical=12),
+                        border=ft.Border.all(0.5, T.CARD_BORDER),
+                        shadow=shadow(T.TEXT_H, 4, 1),
+                        expand=True,
+                    ),
+                ],
+                spacing=10,
+                vertical_alignment=ft.CrossAxisAlignment.START,
+            ),
+            data="thinking" if thinking else "message",
+        )
+        self._chat_list.controls.append(bubble)
+        return bubble
+
+    def _remove_thinking(self):
+        self._chat_list.controls = [
+            c for c in self._chat_list.controls
+            if getattr(c, "data", None) != "thinking"
+        ]
+
+    def _quick_send(self, query: str):
+        self._input.value = query
+        if self._page:
+            self._page.update()
+        self._on_send(None)
+
+    def _clear_chat(self, _=None):
+        self._messages.clear()
+        self._chat_list.controls.clear()
+        self._add_ai_bubble(
+            "Conversación reiniciada. ¿En qué puedo ayudarte con **Papelería Pro**?"
+        )
+        if self._page:
+            self._page.update()
+
+    def _on_send(self, _):
+        text = (self._input.value or "").strip()
+        if not text or self._thinking:
+            return
+
+        self._thinking = True
+        self._input.value = ""
+        self._input.disabled = True
+
+        # Add user bubble
+        self._add_user_bubble(text)
+        thinking_bubble = self._add_ai_bubble("", thinking=True)
+
+        if self._page:
+            self._page.update()
+
+        # Build messages for API
+        self._messages.append({"role": "user", "content": text})
+
+        def call_api():
+            try:
+                client = anthropic.Anthropic()
+                response = client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=1024,
+                    system=SYSTEM_PROMPT,
+                    messages=self._messages,
+                )
+                ai_text = response.content[0].text
+                self._messages.append({"role": "assistant", "content": ai_text})
+
+                def update_ui():
+                    self._remove_thinking()
+                    self._add_ai_bubble(ai_text)
+                    self._thinking = False
+                    self._input.disabled = False
+                    if self._page:
+                        self._page.update()
+
+                if self._page:
+                    self._page.run_task(update_ui) if hasattr(self._page, "run_task") else update_ui()
+
+            except Exception as exc:
+                err_msg = f"⚠️ Error al conectar con la IA: {str(exc)[:120]}"
+
+                def update_err():
+                    self._remove_thinking()
+                    self._add_ai_bubble(err_msg)
+                    self._thinking = False
+                    self._input.disabled = False
+                    if self._page:
+                        self._page.update()
+
+                if self._page:
+                    update_err()
+
+        thread = threading.Thread(target=call_api, daemon=True)
+        thread.start()
+
+
+# ─────────────────────────────────────────────
 # VISTA: DASHBOARD
 # ─────────────────────────────────────────────
 class DashboardView(ft.Container):
     def __init__(self, page):
         super().__init__()
 
-        # ── Métricas ──
         def metric(icon, icon_color, icon_bg, tag_text, tag_color, tag_bg,
                    label, value):
             return ft.Container(
@@ -590,7 +1126,6 @@ class DashboardView(ft.Container):
             spacing=14,
         )
 
-        # ── Gráfico barras semana ──
         days = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
         actuals = [42, 65, 38, 88, 72, 34, 20]
         projections = [55, 70, 50, 80, 75, 45, 35]
@@ -676,7 +1211,6 @@ class DashboardView(ft.Container):
             ),
         )
 
-        # ── Top productos ──
         def prod_row(emoji, name, cat, amount, vtas):
             return ft.Container(
                 content=ft.Row(
@@ -736,7 +1270,6 @@ class DashboardView(ft.Container):
             ),
         )
 
-        # ── Stock crítico ──
         def crit_item(name, amount, pct, color):
             return ft.Column(
                 controls=[
@@ -889,14 +1422,8 @@ class CatalogoView(ft.Container):
                 ink=True,
             )
 
-        grid_row1 = ft.Row(
-            controls=[prod_card(*p) for p in products[:2]],
-            spacing=14,
-        )
-        grid_row2 = ft.Row(
-            controls=[prod_card(*p) for p in products[2:]],
-            spacing=14,
-        )
+        grid_row1 = ft.Row(controls=[prod_card(*p) for p in products[:2]], spacing=14)
+        grid_row2 = ft.Row(controls=[prod_card(*p) for p in products[2:]], spacing=14)
 
         stats = ft.Row(
             controls=[
@@ -992,7 +1519,6 @@ class KardexView(ft.Container):
     def __init__(self, page):
         super().__init__()
 
-        # Métricas superiores
         def kmetric(value, label, primary=False):
             return ft.Container(
                 content=ft.Column(
@@ -1019,9 +1545,6 @@ class KardexView(ft.Container):
             ],
             spacing=12,
         )
-
-        # Formulario registro
-        tipo_ref = [True]  # True = entrada
 
         entry_btn = ft.Container(
             content=ft.Row(
@@ -1114,7 +1637,6 @@ class KardexView(ft.Container):
             ),
         )
 
-        # Tabla historial
         def row_data(fecha, producto, tipo, cant, razon):
             tipo_badge = badge("ENTRADA", T.SUCCESS, T.SUCCESS_LT) if tipo == "E" \
                 else badge("SALIDA", T.ERROR, T.ERROR_LT)
@@ -1145,7 +1667,7 @@ class KardexView(ft.Container):
                 ft.DataColumn(ft.Text("Razón / Ref.", size=11, color=T.TEXT_MUTED, weight=ft.FontWeight.W_600)),
             ],
             rows=[
-                row_data(("24 May 2024", "09:15 AM"), "Papel Bond A4 80g", "E", "500", 'Compra Proveedor "..."'),
+                row_data(("24 May 2024", "09:15 AM"), "Papel Bond A4 80g", "E", "500", 'Compra Proveedor'),
                 row_data(("24 May 2024", "10:42 AM"), "Bolígrafo Gel Negro", "S", "120", "Venta Directa - Ticket 8829"),
                 row_data(("23 May 2024", "04:30 PM"), "Cuaderno Espiral A5", "E", "50", "Ajuste de inventario físico"),
                 row_data(("23 May 2024", "11:00 AM"), "Marcador Permanente", "S", "15", "Baja por daño en empaque"),
@@ -1199,7 +1721,6 @@ class KardexView(ft.Container):
             ),
         )
 
-        # Alerta stock bajo
         def low_stock_row(name, current, total, color):
             pct = max(4, int((current / total) * 100))
             return ft.Column(
@@ -1299,7 +1820,6 @@ class GastosView(ft.Container):
     def __init__(self, page):
         super().__init__()
 
-        # Métricas dobles
         def gmetric(label, tag, value, sub_text, sub_color, pct):
             return ft.Container(
                 content=ft.Column(
@@ -1373,7 +1893,6 @@ class GastosView(ft.Container):
             spacing=12,
         )
 
-        # Formulario nuevo gasto
         form_card = card(
             ft.Column(
                 controls=[
@@ -1424,37 +1943,11 @@ class GastosView(ft.Container):
                               prefix_icon=ft.Icons.CALENDAR_TODAY_ROUNDED),
                     ft.Container(height=14),
                     primary_btn("Registrar Gasto", ft.Icons.ADD_ROUNDED, expand=True),
-                    ft.Container(height=12),
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Row(
-                                    controls=[
-                                        ft.Icon(ft.Icons.LIGHTBULB_OUTLINE_ROUNDED,
-                                                color=T.INFO, size=14),
-                                        ft.Text("Tip de Gestión", size=12,
-                                                weight=ft.FontWeight.BOLD, color=T.INFO),
-                                    ],
-                                    spacing=6,
-                                ),
-                                ft.Text(
-                                    "Considera comprar al por mayor las resmas de papel "
-                                    "para ahorrar un 12% mensual basado en tu historial.",
-                                    size=11, color=T.TEXT_MUTED, italic=True,
-                                ),
-                            ],
-                            spacing=6,
-                        ),
-                        bgcolor=T.INFO_LT,
-                        border_radius=T.R_MD,
-                        padding=12,
-                    ),
                 ],
                 spacing=0,
             ),
         )
 
-        # Lista gastos recientes
         def gasto_row(emoji, nombre, ref, cat, cat_color, cat_bg, fecha, monto):
             return ft.Container(
                 content=ft.Row(
@@ -1472,9 +1965,7 @@ class GastosView(ft.Container):
                             spacing=2, expand=True,
                         ),
                         ft.Column(
-                            controls=[
-                                badge(cat, cat_color, cat_bg),
-                            ],
+                            controls=[badge(cat, cat_color, cat_bg)],
                             horizontal_alignment=ft.CrossAxisAlignment.END,
                         ),
                         ft.Container(width=10),
@@ -1506,46 +1997,13 @@ class GastosView(ft.Container):
                     ),
                     ft.Container(height=10),
                     gasto_row("🚚", "Envío Proveedor FABER", "Referencia #9021",
-                              "LOGÍSTICA", T.PRIMARY, T.PRIMARY_LIGHT,
-                              "Hoy, 10:45", "S/ 45.00"),
+                              "LOGÍSTICA", T.PRIMARY, T.PRIMARY_LIGHT, "Hoy, 10:45", "S/ 45.00"),
                     gasto_row("🖨️", "Cartuchos de Tinta Pro", "Insumos de impresión",
-                              "SUMINISTROS", T.TEXT_MUTED, T.INPUT_BG,
-                              "Ayer", "S/ 320.00"),
+                              "SUMINISTROS", T.TEXT_MUTED, T.INPUT_BG, "Ayer", "S/ 320.00"),
                     gasto_row("⚡", "Recibo de Luz - Local A", "Pago de servicios",
-                              "SERVICIOS", T.WARNING, T.WARNING_LT,
-                              "22 Oct", "S/ 1,055.50"),
+                              "SERVICIOS", T.WARNING, T.WARNING_LT, "22 Oct", "S/ 1,055.50"),
                     gasto_row("🧹", "Materiales de Limpieza", "Mantenimiento mensual",
-                              "SUMINISTROS", T.TEXT_MUTED, T.INPUT_BG,
-                              "20 Oct", "S/ 85.00"),
-                    ft.Container(height=10),
-                    ft.Container(
-                        content=ft.Column(
-                            controls=[
-                                ft.Row(
-                                    controls=[
-                                        ft.Text("UTILIZACIÓN DE PRESUPUESTO SEMANAL",
-                                                size=11, color=T.TEXT_MUTED,
-                                                weight=ft.FontWeight.W_600, expand=True),
-                                        ft.Text("S/ 3,450 / S/ 5,000", size=12,
-                                                weight=ft.FontWeight.BOLD, color=T.PRIMARY),
-                                    ],
-                                ),
-                                ft.Container(
-                                    content=ft.Container(
-                                        bgcolor=T.PRIMARY, border_radius=T.R_PILL,
-                                        width=240, height=6,
-                                    ),
-                                    bgcolor=T.INPUT_BG, border_radius=T.R_PILL, height=6,
-                                ),
-                                ft.Text("Tendencia basada en compras de almacén",
-                                        size=11, color=T.TEXT_MUTED),
-                            ],
-                            spacing=6,
-                        ),
-                        bgcolor=T.INPUT_BG,
-                        border_radius=T.R_MD,
-                        padding=12,
-                    ),
+                              "SUMINISTROS", T.TEXT_MUTED, T.INPUT_BG, "20 Oct", "S/ 85.00"),
                 ],
                 spacing=0,
             ),
@@ -1558,20 +2016,6 @@ class GastosView(ft.Container):
                         section_header("Libro de Gastos",
                                        "Control de egresos y presupuesto de suministros."),
                         ft.Container(expand=True),
-                        ft.Container(
-                            content=ft.Row(
-                                controls=[
-                                    ft.Icon(ft.Icons.CALENDAR_TODAY_ROUNDED,
-                                            color=T.TEXT_MUTED, size=14),
-                                    ft.Text("Octubre 2023", size=13, color=T.TEXT_MUTED),
-                                ],
-                                spacing=6,
-                            ),
-                            bgcolor=T.INPUT_BG,
-                            border=ft.Border.all(0.5, T.CARD_BORDER),
-                            border_radius=T.R_MD,
-                            padding=ft.padding.symmetric(horizontal=14, vertical=7),
-                        ),
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.END,
                 ),
@@ -1602,7 +2046,7 @@ class VentasView(ft.Container):
     def __init__(self, page):
         super().__init__()
         self._page = page
-        self._cart = {}  # name -> {emoji, price, qty}
+        self._cart = {}
         self._cart_col = ft.Column(spacing=0, expand=True)
         self._cart_total_col = ft.Column(spacing=0)
         self._build()
@@ -1649,15 +2093,14 @@ class VentasView(ft.Container):
                                     ft.Container(height=4),
                                     ft.Row(
                                         controls=[
-                                            ft.Text(f"${price:.2f}", size=16,
+                                            ft.Text(f"S/{price:.2f}", size=16,
                                                     weight=ft.FontWeight.BOLD, color=T.PRIMARY),
                                             ft.Container(expand=True),
                                             ft.Container(
-                                                content=ft.Icon(ft.Icons.SHOPPING_CART_OUTLINED,
-                                                                color=T.TEXT_MUTED, size=16),
+                                                content=ft.Icon(ft.Icons.ADD_SHOPPING_CART_ROUNDED,
+                                                                color=T.PRIMARY, size=16),
                                                 width=30, height=30,
-                                                bgcolor=T.INPUT_BG,
-                                                border=ft.Border.all(0.5, T.CARD_BORDER),
+                                                bgcolor=T.PRIMARY_LIGHT,
                                                 border_radius=T.R_MD,
                                                 alignment=ft.Alignment(0, 0),
                                             ),
@@ -1684,106 +2127,18 @@ class VentasView(ft.Container):
         grid_rows = []
         for i in range(0, len(products), 3):
             grid_rows.append(
-                ft.Row(
-                    controls=[prod_tile(*p) for p in products[i:i+3]],
-                    spacing=10,
-                )
+                ft.Row(controls=[prod_tile(*p) for p in products[i:i+3]], spacing=10)
             )
 
-        # Panel izquierdo
-        left = ft.Column(
-            controls=[
-                ft.Row(
-                    controls=[
-                        ft.Container(
-                            content=ft.Text("PAPELERÍA", size=11, weight=ft.FontWeight.W_700,
-                                            color="#FFFFFF"),
-                            bgcolor=T.PRIMARY, border_radius=T.R_PILL,
-                            padding=ft.padding.symmetric(horizontal=12, vertical=5),
-                        ),
-                        ft.Container(
-                            content=ft.Text("OFICINA", size=11, color=T.TEXT_MUTED),
-                            border=ft.Border.all(0.5, T.CARD_BORDER),
-                            border_radius=T.R_PILL,
-                            padding=ft.padding.symmetric(horizontal=12, vertical=5),
-                        ),
-                        ft.Container(
-                            content=ft.Text("ARTE", size=11, color=T.TEXT_MUTED),
-                            border=ft.Border.all(0.5, T.CARD_BORDER),
-                            border_radius=T.R_PILL,
-                            padding=ft.padding.symmetric(horizontal=12, vertical=5),
-                        ),
-                    ],
-                    spacing=8,
-                ),
-                ft.Container(height=12),
-                *grid_rows,
-                ft.Container(height=12),
-                ft.Container(
-                    content=ft.Row(
-                        controls=[
-                            ft.Icon(ft.Icons.TRENDING_UP_ROUNDED, color=T.PRIMARY, size=14),
-                            ft.Text("OCUPACIÓN DE CAJA", size=10,
-                                    weight=ft.FontWeight.W_600, color=T.TEXT_MUTED,
-                                    expand=True),
-                            ft.Text("75%", size=12, weight=ft.FontWeight.BOLD, color=T.PRIMARY),
-                        ],
-                        spacing=6,
-                    ),
-                    padding=ft.padding.only(bottom=8),
-                ),
-                ft.Container(
-                    content=ft.Container(
-                        bgcolor=T.PRIMARY, border_radius=T.R_PILL, height=8,
-                        width=310,
-                    ),
-                    bgcolor=T.INPUT_BG, border_radius=T.R_PILL, height=8,
-                ),
-                ft.Text("Capacidad diaria", size=10, color=T.TEXT_MUTED),
-            ],
-            spacing=10,
-            expand=True,
-        )
+        left = ft.Column(controls=[*grid_rows], spacing=10, expand=True)
 
-        # Panel carrito
         cart_count = ft.Container(
             content=ft.Text("0 Items", size=10, weight=ft.FontWeight.W_600, color=T.PRIMARY),
             bgcolor=T.PRIMARY_LIGHT,
             padding=ft.padding.symmetric(horizontal=8, vertical=3),
             border_radius=T.R_PILL,
-            ref=ft.Ref(),
         )
         self._cart_count_badge = cart_count
-
-        ventas_recientes = ft.Column(
-            controls=[
-                ft.Row(
-                    controls=[
-                        ft.Text("Ventas Recientes", size=12,
-                                weight=ft.FontWeight.BOLD, color=T.TEXT_H, expand=True),
-                        ft.Text("VER TODO", size=11, color=T.PRIMARY),
-                    ],
-                ),
-                ft.Container(height=6),
-                ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            ft.Text("#BOL-00452", size=12,
-                                    weight=ft.FontWeight.W_600, color=T.TEXT_H),
-                            ft.Text("Cliente: Arturo P.", size=11, color=T.TEXT_MUTED),
-                            ft.Text("$12.00", size=13,
-                                    weight=ft.FontWeight.BOLD, color=T.PRIMARY),
-                        ],
-                        spacing=2,
-                    ),
-                    bgcolor=T.INPUT_BG,
-                    border_radius=T.R_MD,
-                    padding=10,
-                    border=ft.Border.all(0.5, T.CARD_BORDER),
-                ),
-            ],
-            spacing=0,
-        )
 
         right = card(
             ft.Column(
@@ -1800,12 +2155,9 @@ class VentasView(ft.Container):
                     ft.Container(height=4),
                     self._cart_total_col,
                     ft.Container(height=10),
-                    primary_btn("🧾  Generar Boleta",
-                                icon=None, expand=True),
+                    primary_btn("🧾  Generar Boleta", icon=None, expand=True),
                     ft.Container(height=6),
                     primary_btn("Cancelar", variant="outline", expand=True),
-                    ft.Divider(height=14, color=T.DIVIDER),
-                    ventas_recientes,
                 ],
                 spacing=0,
             ),
@@ -1815,8 +2167,7 @@ class VentasView(ft.Container):
 
         self.content = ft.Column(
             controls=[
-                section_header("Venta en Curso",
-                               "Seleccione productos para la boleta actual"),
+                section_header("Venta en Curso", "Seleccione productos para la boleta actual"),
                 ft.Container(height=14),
                 ft.Row(
                     controls=[
@@ -1868,11 +2219,9 @@ class VentasView(ft.Container):
                 ft.Container(
                     content=ft.Column(
                         controls=[
-                            ft.Icon(ft.Icons.SHOPPING_CART_OUTLINED,
-                                    size=40, color=T.TEXT_DISABLED),
+                            ft.Icon(ft.Icons.SHOPPING_CART_OUTLINED, size=40, color=T.TEXT_DISABLED),
                             ft.Text("Haz clic en un producto\npara agregarlo",
-                                    size=12, color=T.TEXT_MUTED,
-                                    text_align=ft.TextAlign.CENTER),
+                                    size=12, color=T.TEXT_MUTED, text_align=ft.TextAlign.CENTER),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         spacing=8,
@@ -1888,9 +2237,8 @@ class VentasView(ft.Container):
                 "0 Items", size=10, weight=ft.FontWeight.W_600, color=T.PRIMARY)
             return
 
-        items = list(self._cart.items())
         total = 0.0
-        for name, v in items:
+        for name, v in self._cart.items():
             subtotal = v["price"] * v["qty"]
             total += subtotal
             self._cart_col.controls.append(
@@ -1902,7 +2250,7 @@ class VentasView(ft.Container):
                                 controls=[
                                     ft.Text(name, size=12, weight=ft.FontWeight.W_600,
                                             color=T.TEXT_H, max_lines=1),
-                                    ft.Text(f"${v['price']:.2f} c/u", size=11, color=T.TEXT_MUTED),
+                                    ft.Text(f"S/{v['price']:.2f} c/u", size=11, color=T.TEXT_MUTED),
                                 ],
                                 spacing=1, expand=True,
                             ),
@@ -1910,11 +2258,9 @@ class VentasView(ft.Container):
                                 controls=[
                                     ft.Container(
                                         content=ft.Text("−", size=14, color=T.TEXT_MUTED),
-                                        width=24, height=24,
-                                        bgcolor=T.INPUT_BG,
+                                        width=24, height=24, bgcolor=T.INPUT_BG,
                                         border=ft.Border.all(0.5, T.CARD_BORDER),
-                                        border_radius=6,
-                                        alignment=ft.Alignment(0, 0),
+                                        border_radius=6, alignment=ft.Alignment(0, 0),
                                         ink=True,
                                         on_click=lambda e, n=name: self._change_qty(n, -1),
                                     ),
@@ -1922,11 +2268,9 @@ class VentasView(ft.Container):
                                             text_align=ft.TextAlign.CENTER),
                                     ft.Container(
                                         content=ft.Text("+", size=14, color=T.TEXT_MUTED),
-                                        width=24, height=24,
-                                        bgcolor=T.INPUT_BG,
+                                        width=24, height=24, bgcolor=T.INPUT_BG,
                                         border=ft.Border.all(0.5, T.CARD_BORDER),
-                                        border_radius=6,
-                                        alignment=ft.Alignment(0, 0),
+                                        border_radius=6, alignment=ft.Alignment(0, 0),
                                         ink=True,
                                         on_click=lambda e, n=name: self._change_qty(n, 1),
                                     ),
@@ -1950,27 +2294,21 @@ class VentasView(ft.Container):
 
         igv = total * 0.18
         self._cart_total_col.controls += [
-            ft.Row(
-                controls=[
-                    ft.Text("Subtotal", size=13, color=T.TEXT_MUTED, expand=True),
-                    ft.Text(f"${total:.2f}", size=13, color=T.TEXT_BODY),
-                ],
-            ),
-            ft.Row(
-                controls=[
-                    ft.Text("IGV (18%)", size=13, color=T.TEXT_MUTED, expand=True),
-                    ft.Text(f"${igv:.2f}", size=13, color=T.TEXT_BODY),
-                ],
-            ),
+            ft.Row(controls=[
+                ft.Text("Subtotal", size=13, color=T.TEXT_MUTED, expand=True),
+                ft.Text(f"S/{total:.2f}", size=13, color=T.TEXT_BODY),
+            ]),
+            ft.Row(controls=[
+                ft.Text("IGV (18%)", size=13, color=T.TEXT_MUTED, expand=True),
+                ft.Text(f"S/{igv:.2f}", size=13, color=T.TEXT_BODY),
+            ]),
             ft.Divider(height=0.5, color=T.DIVIDER),
-            ft.Row(
-                controls=[
-                    ft.Text("Total", size=15, weight=ft.FontWeight.BOLD,
-                            color=T.TEXT_H, expand=True),
-                    ft.Text(f"${total + igv:.2f}", size=16,
-                            weight=ft.FontWeight.BOLD, color=T.PRIMARY),
-                ],
-            ),
+            ft.Row(controls=[
+                ft.Text("Total", size=15, weight=ft.FontWeight.BOLD,
+                        color=T.TEXT_H, expand=True),
+                ft.Text(f"S/{total + igv:.2f}", size=16,
+                        weight=ft.FontWeight.BOLD, color=T.PRIMARY),
+            ]),
         ]
 
         count = sum(v["qty"] for v in self._cart.values())
@@ -1985,7 +2323,6 @@ class ReportesView(ft.Container):
     def __init__(self, page):
         super().__init__()
 
-        # Estadísticas laterales
         def report_stat(tag, tag_color, tag_bg, label, value, diff, diff_color):
             return ft.Container(
                 content=ft.Column(
@@ -1998,9 +2335,7 @@ class ReportesView(ft.Container):
                     ],
                     spacing=3,
                 ),
-                bgcolor=T.CARD_BG,
-                border_radius=T.R_LG,
-                padding=16,
+                bgcolor=T.CARD_BG, border_radius=T.R_LG, padding=16,
                 border=ft.Border.all(0.5, T.CARD_BORDER),
                 shadow=shadow(T.PRIMARY, 4, 1),
             )
@@ -2014,45 +2349,14 @@ class ReportesView(ft.Container):
                 report_stat("MARGEN", T.SUCCESS, T.SUCCESS_LT,
                             "Utilidad Neta", "S/ 12,840.50",
                             "↑ +5.2% vs mes anterior", T.SUCCESS),
-                ft.Container(height=10),
-                ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            badge("CRÍTICO", T.ERROR, T.ERROR_LT),
-                            ft.Container(height=6),
-                            ft.Text("Productos Sin Stock", size=12, color=T.TEXT_MUTED),
-                            ft.Text("24 Items", size=20, weight=ft.FontWeight.BOLD, color=T.TEXT_H),
-                            ft.Text("Requiere reposición inmediata",
-                                    size=11, color=T.TEXT_MUTED),
-                        ],
-                        spacing=3,
-                    ),
-                    bgcolor=T.CARD_BG,
-                    border_radius=T.R_LG,
-                    padding=16,
-                    border=ft.Border.all(0.5, ft.Colors.with_opacity(0.4, T.ERROR)),
-                    shadow=shadow(T.ERROR, 4, 1),
-                ),
             ],
             spacing=0,
             width=230,
         )
 
-        # Gráfico de tendencias por semana
-        weeks = [
-            [40, 45, 60, 50],
-            [70, 80, 95, 75],
-            [55, 65, 88, 92],
-            [60, 72, 65, 45],
-        ]
-        proj = [
-            [50, 55, 65, 60],
-            [75, 85, 90, 80],
-            [60, 70, 85, 88],
-            [65, 75, 70, 50],
-        ]
-        all_vals = [v for row in weeks + proj for v in row]
-        max_v = max(all_vals)
+        weeks = [[40, 45, 60, 50], [70, 80, 95, 75], [55, 65, 88, 92], [60, 72, 65, 45]]
+        proj  = [[50, 55, 65, 60], [75, 85, 90, 80], [60, 70, 85, 88], [65, 75, 70, 50]]
+        max_v = max(v for row in weeks + proj for v in row)
 
         bar_cols = []
         for wi, (wvals, pvals) in enumerate(zip(weeks, proj)):
@@ -2060,248 +2364,31 @@ class ReportesView(ft.Container):
                 controls=[
                     ft.Column(
                         controls=[
-                            ft.Container(
-                                bgcolor=T.PRIMARY_LIGHT,
-                                border_radius=ft.BorderRadius(3, 3, 0, 0),
-                                width=12,
-                                height=int((pvals[di] / max_v) * 160),
-                            ),
-                            ft.Container(
-                                bgcolor=T.PRIMARY,
-                                border_radius=ft.BorderRadius(3, 3, 0, 0),
-                                width=12,
-                                height=int((wvals[di] / max_v) * 160),
-                            ),
+                            ft.Container(bgcolor=T.PRIMARY_LIGHT,
+                                         border_radius=ft.BorderRadius(3, 3, 0, 0),
+                                         width=12, height=int((pvals[di] / max_v) * 160)),
+                            ft.Container(bgcolor=T.PRIMARY,
+                                         border_radius=ft.BorderRadius(3, 3, 0, 0),
+                                         width=12, height=int((wvals[di] / max_v) * 160)),
                         ],
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        spacing=2,
-                    )
-                    for di in range(4)
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2,
+                    ) for di in range(4)
                 ],
                 spacing=3,
                 vertical_alignment=ft.CrossAxisAlignment.END,
             )
-            bar_cols.append(
-                ft.Column(
-                    controls=[
-                        week_bars,
-                        ft.Text(f"SEMANA 0{wi+1}", size=9, color=T.TEXT_MUTED),
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=4,
-                )
-            )
+            bar_cols.append(ft.Column(
+                controls=[week_bars, ft.Text(f"SEMANA 0{wi+1}", size=9, color=T.TEXT_MUTED)],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4,
+            ))
 
-        trend_card = card(
-            ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Column(
-                                controls=[
-                                    ft.Text("Tendencias de Venta Diaria", size=14,
-                                            weight=ft.FontWeight.BOLD, color=T.TEXT_H),
-                                    ft.Text("Visualización del flujo de caja durante los últimos 30 días",
-                                            size=11, color=T.TEXT_MUTED),
-                                ],
-                                spacing=2, expand=True,
-                            ),
-                            ft.Row(
-                                controls=[
-                                    ft.Row([
-                                        ft.Container(width=8, height=8, bgcolor=T.PRIMARY,
-                                                     border_radius=T.R_PILL),
-                                        ft.Text("Ventas", size=11, color=T.TEXT_MUTED),
-                                    ], spacing=4),
-                                    ft.Row([
-                                        ft.Container(width=8, height=8, bgcolor=T.PRIMARY_LIGHT,
-                                                     border_radius=T.R_PILL),
-                                        ft.Text("Proyectado", size=11, color=T.TEXT_MUTED),
-                                    ], spacing=4),
-                                ],
-                                spacing=12,
-                            ),
-                        ],
-                    ),
-                    ft.Container(height=12),
-                    ft.Row(
-                        controls=bar_cols,
-                        alignment=ft.MainAxisAlignment.SPACE_AROUND,
-                        vertical_alignment=ft.CrossAxisAlignment.END,
-                    ),
-                ],
-            ),
-        )
-
-        # Desempeño por categoría
-        def cat_row_item(color, label, amount):
-            return ft.Row(
-                controls=[
-                    ft.Container(width=10, height=10, bgcolor=color, border_radius=T.R_PILL),
-                    ft.Text(label, size=12, color=T.TEXT_BODY, expand=True),
-                    ft.Text(amount, size=12, weight=ft.FontWeight.W_600, color=T.TEXT_H),
-                ],
-                spacing=8,
-            )
-
-        categ_card = card(
-            ft.Column(
-                controls=[
-                    ft.Text("Desempeño por Categoría", size=13,
-                            weight=ft.FontWeight.BOLD, color=T.TEXT_H),
-                    ft.Container(height=10),
-                    ft.Stack(
-                        controls=[
-                            ft.Container(
-                                width=80, height=80,
-                                border_radius=40,
-                                border=ft.Border.all(10, T.INPUT_BG),
-                                bgcolor="transparent",
-                            ),
-                            ft.Container(
-                                content=ft.Text("65%", size=14,
-                                                weight=ft.FontWeight.BOLD, color=T.TEXT_H),
-                                width=80, height=80,
-                                alignment=ft.Alignment(0, 0),
-                            ),
-                        ],
-                        width=80, height=80,
-                    ),
-                    ft.Container(height=10),
-                    cat_row_item(T.PRIMARY, "Útiles de Oficina", "S/ 24.5k"),
-                    cat_row_item(T.PRIMARY_LIGHT, "Arte y Diseño", "S/ 12.1k"),
-                    cat_row_item(T.PRIMARY_MID, "Papelería Fina", "S/ 5.4k"),
-                    cat_row_item(T.INPUT_BG, "Otros", "S/ 3.2k"),
-                ],
-                spacing=4,
-            ),
-        )
-
-        # Margen por proveedor
-        def margin_row(name, pct):
-            return ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text(name, size=12, color=T.TEXT_BODY, expand=True),
-                            ft.Text(f"{pct}%", size=12,
-                                    weight=ft.FontWeight.BOLD, color=T.PRIMARY),
-                        ],
-                    ),
-                    ft.Container(
-                        content=ft.Container(
-                            bgcolor=T.PRIMARY, border_radius=T.R_PILL,
-                            width=int(pct * 2.2), height=5,
-                        ),
-                        bgcolor=T.INPUT_BG, border_radius=T.R_PILL, height=5,
-                    ),
-                ],
-                spacing=4,
-            )
-
-        margin_card = card(
-            ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text("Margen por Proveedor", size=13,
-                                    weight=ft.FontWeight.BOLD, color=T.TEXT_H, expand=True),
-                            ft.Text("VER TODO ›", size=11, color=T.PRIMARY),
-                        ],
-                    ),
-                    ft.Container(height=10),
-                    margin_row("Faber-Castell", 42),
-                    ft.Container(height=6),
-                    margin_row("Artesco", 38),
-                    ft.Container(height=6),
-                    margin_row("Pilot Corporation", 31),
-                    ft.Container(height=6),
-                    margin_row("Ledesma S.A.", 27),
-                    ft.Container(height=10),
-                    ft.Container(
-                        content=ft.Row(
-                            controls=[
-                                ft.Icon(ft.Icons.INFO_OUTLINE_ROUNDED, color=T.INFO, size=13),
-                                ft.Container(width=6),
-                                ft.Text(
-                                    "El margen promedio ha subido un 2.4% "
-                                    "por nueva negociación con distribuidores locales.",
-                                    size=11, color=T.INFO, italic=True, expand=True,
-                                ),
-                            ],
-                        ),
-                        bgcolor=T.INFO_LT,
-                        border_radius=T.R_MD,
-                        padding=10,
-                    ),
-                ],
-                spacing=0,
-            ),
-        )
-
-        # Tabla de alertas
-        def alert_row(emoji, name, ref, stock, stock_color, minimo, estado, estado_color, estado_bg):
-            return ft.DataRow(
-                cells=[
-                    ft.DataCell(ft.Row(
-                        controls=[ft.Text(emoji, size=16),
-                                  ft.Text(name, size=12, color=T.TEXT_H)],
-                        spacing=6,
-                    )),
-                    ft.DataCell(ft.Text(ref, size=11, color=T.TEXT_MUTED)),
-                    ft.DataCell(ft.Text(stock, size=12,
-                                        weight=ft.FontWeight.BOLD, color=stock_color)),
-                    ft.DataCell(ft.Text(str(minimo), size=12, color=T.TEXT_BODY)),
-                    ft.DataCell(badge(estado, estado_color, estado_bg)),
-                    ft.DataCell(ft.Icon(ft.Icons.SHOPPING_CART_OUTLINED,
-                                        color=T.PRIMARY, size=16)),
-                ],
-            )
-
-        alert_table = ft.DataTable(
-            columns=[
-                ft.DataColumn(ft.Text("Producto", size=11, color=T.TEXT_MUTED, weight=ft.FontWeight.W_600)),
-                ft.DataColumn(ft.Text("Referencia", size=11, color=T.TEXT_MUTED, weight=ft.FontWeight.W_600)),
-                ft.DataColumn(ft.Text("Stock Actual", size=11, color=T.TEXT_MUTED, weight=ft.FontWeight.W_600)),
-                ft.DataColumn(ft.Text("Mínimo", size=11, color=T.TEXT_MUTED, weight=ft.FontWeight.W_600)),
-                ft.DataColumn(ft.Text("Estado", size=11, color=T.TEXT_MUTED, weight=ft.FontWeight.W_600)),
-                ft.DataColumn(ft.Text("Acción", size=11, color=T.TEXT_MUTED, weight=ft.FontWeight.W_600)),
-            ],
-            rows=[
-                alert_row("✒️", "Pluma Estilográfica Premium", "PC-992-BLK",
-                          "2 unidades", T.ERROR, 10,
-                          "AGOTÁNDOSE", T.WARNING, T.WARNING_LT),
-                alert_row("📄", "Papel Bond 80g A4 (500h)", "PB-A4-500",
-                          "0 unidades", T.ERROR, 50,
-                          "SIN STOCK", T.ERROR, T.ERROR_LT),
-            ],
-            border=ft.Border.all(0, "transparent"),
-            heading_row_color=T.INPUT_BG,
-            data_row_color={"hovered": T.PRIMARY_LIGHT},
-            column_spacing=14,
-        )
-
-        alerts_card = card(
-            ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text("Alerta de Existencias (Crítico)", size=14,
-                                    weight=ft.FontWeight.BOLD, color=T.TEXT_H, expand=True),
-                            primary_btn("Descargar Reporte PDF",
-                                        ft.Icons.PICTURE_AS_PDF_ROUNDED, "outline"),
-                        ],
-                    ),
-                    ft.Container(height=10),
-                    ft.Container(
-                        content=alert_table,
-                        bgcolor=T.INPUT_BG,
-                        border_radius=T.R_MD,
-                        border=ft.Border.all(0.5, T.CARD_BORDER),
-                    ),
-                ],
-            ),
-        )
+        trend_card = card(ft.Column(controls=[
+            ft.Text("Tendencias de Venta Diaria", size=14,
+                    weight=ft.FontWeight.BOLD, color=T.TEXT_H),
+            ft.Container(height=12),
+            ft.Row(controls=bar_cols, alignment=ft.MainAxisAlignment.SPACE_AROUND,
+                   vertical_alignment=ft.CrossAxisAlignment.END),
+        ]))
 
         self.content = ft.Column(
             controls=[
@@ -2310,14 +2397,11 @@ class ReportesView(ft.Container):
                         section_header("Reportes y Analítica",
                                        "Visualiza el rendimiento de tu papelería con datos precisos."),
                         ft.Container(expand=True),
-                        ft.Row(
-                            controls=[
-                                primary_btn("Este Mes"),
-                                primary_btn("Trimestre", variant="outline"),
-                                primary_btn("Año 2024", variant="outline"),
-                            ],
-                            spacing=6,
-                        ),
+                        ft.Row(controls=[
+                            primary_btn("Este Mes"),
+                            primary_btn("Trimestre", variant="outline"),
+                            primary_btn("Año 2024", variant="outline"),
+                        ], spacing=6),
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.END,
                 ),
@@ -2325,29 +2409,11 @@ class ReportesView(ft.Container):
                 ft.Row(
                     controls=[
                         stats_col,
-                        ft.Container(
-                            content=ft.Column(
-                                controls=[
-                                    trend_card,
-                                    ft.Container(height=12),
-                                    ft.Row(
-                                        controls=[
-                                            ft.Container(categ_card, expand=1),
-                                            ft.Container(margin_card, expand=1),
-                                        ],
-                                        spacing=12,
-                                    ),
-                                ],
-                                spacing=0,
-                            ),
-                            expand=True,
-                        ),
+                        ft.Container(content=trend_card, expand=True),
                     ],
                     spacing=14,
                     vertical_alignment=ft.CrossAxisAlignment.START,
                 ),
-                ft.Container(height=14),
-                alerts_card,
             ],
             scroll=ft.ScrollMode.AUTO,
             expand=True,
@@ -2364,7 +2430,6 @@ class SyncView(ft.Container):
     def __init__(self, page):
         super().__init__()
 
-        # Status principal
         status_card = ft.Container(
             content=ft.Row(
                 controls=[
@@ -2393,186 +2458,15 @@ class SyncView(ft.Container):
             padding=16,
         )
 
-        info_row = ft.Row(
-            controls=[
-                ft.Column(
-                    controls=[
-                        ft.Text("ÚLTIMO RESPALDO", size=10, color=T.TEXT_MUTED,
-                                weight=ft.FontWeight.W_600),
-                        ft.Text("14:32", size=24, weight=ft.FontWeight.BOLD, color=T.TEXT_H),
-                        ft.Text("Hoy, 24 May", size=11, color=T.TEXT_MUTED),
-                    ],
-                    spacing=2,
-                ),
-                ft.Container(expand=True),
-                ft.Column(
-                    controls=[
-                        ft.Text("SALUD DE LA BASE DE DATOS", size=10, color=T.TEXT_MUTED,
-                                weight=ft.FontWeight.W_600),
-                        ft.Container(height=4),
-                        ft.Row(
-                            controls=[
-                                ft.Container(width=10, height=10, bgcolor=T.SUCCESS,
-                                             border_radius=T.R_PILL),
-                                ft.Text("Excelente", size=14,
-                                        weight=ft.FontWeight.BOLD, color=T.SUCCESS),
-                            ],
-                            spacing=6,
-                        ),
-                    ],
-                    spacing=2,
-                ),
-            ],
-        )
-
         action_btns = ft.Row(
             controls=[
-                primary_btn("↑  Sincronizar Ahora",
-                            ft.Icons.SYNC_ROUNDED, expand=True),
-                primary_btn("↓  Exportar Datos",
-                            ft.Icons.DOWNLOAD_ROUNDED, "outline", expand=True),
-                primary_btn("☁  Importar Respaldo",
-                            ft.Icons.UPLOAD_ROUNDED, "outline", expand=True),
+                primary_btn("↑  Sincronizar Ahora", ft.Icons.SYNC_ROUNDED, expand=True),
+                primary_btn("↓  Exportar Datos", ft.Icons.DOWNLOAD_ROUNDED, "outline", expand=True),
+                primary_btn("☁  Importar Respaldo", ft.Icons.UPLOAD_ROUNDED, "outline", expand=True),
             ],
             spacing=8,
         )
 
-        # Historial
-        def hist_row(icon, icon_color, icon_bg, title, sub, time, status, status_color):
-            return ft.Container(
-                content=ft.Row(
-                    controls=[
-                        ft.Container(
-                            content=ft.Icon(icon, color=icon_color, size=16),
-                            bgcolor=icon_bg, width=32, height=32,
-                            border_radius=T.R_PILL, alignment=ft.Alignment(0, 0),
-                        ),
-                        ft.Column(
-                            controls=[
-                                ft.Text(title, size=13, weight=ft.FontWeight.W_600, color=T.TEXT_H),
-                                ft.Text(sub, size=11, color=T.TEXT_MUTED),
-                            ],
-                            spacing=2, expand=True,
-                        ),
-                        ft.Column(
-                            controls=[
-                                ft.Text(time, size=12, color=T.TEXT_BODY),
-                                ft.Text(status, size=11, weight=ft.FontWeight.BOLD,
-                                        color=status_color),
-                            ],
-                            spacing=2,
-                            horizontal_alignment=ft.CrossAxisAlignment.END,
-                        ),
-                    ],
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=10,
-                ),
-                border=ft.Border(bottom=ft.BorderSide(0.5, T.CARD_BORDER)),
-                padding=ft.padding.symmetric(vertical=10),
-            )
-
-        hist_card = card(
-            ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Column(
-                                controls=[
-                                    ft.Text("Historial de Sincronización", size=14,
-                                            weight=ft.FontWeight.BOLD, color=T.TEXT_H),
-                                    ft.Text("Registro detallado de los últimos 7 días.",
-                                            size=11, color=T.TEXT_MUTED),
-                                ],
-                                spacing=2, expand=True,
-                            ),
-                            ft.Text("Ver Reporte Completo", size=12, color=T.PRIMARY),
-                        ],
-                    ),
-                    ft.Container(height=8),
-                    hist_row(ft.Icons.CHECK_CIRCLE_ROUNDED, T.SUCCESS, T.SUCCESS_LT,
-                             "Sincronización Automática Completa",
-                             "Servidor: AWS Region East-1 • 12.4 MB transferidos",
-                             "Hoy, 14:32", "EXITOSA", T.SUCCESS),
-                    hist_row(ft.Icons.INSERT_DRIVE_FILE_ROUNDED, T.INFO, T.INFO_LT,
-                             "Exportación de Catálogo (Manual)",
-                             "Formato: CSV • Usuario: Admin Papelería",
-                             "Hoy, 09:15", "FINALIZADA", T.INFO),
-                    hist_row(ft.Icons.ERROR_OUTLINE_ROUNDED, T.ERROR, T.ERROR_LT,
-                             "Fallo de Conexión de Red",
-                             "Intento de respaldo fallido • Reintentado automáticamente",
-                             "Ayer, 23:45", "ERROR", T.ERROR),
-                    hist_row(ft.Icons.CHECK_CIRCLE_ROUNDED, T.SUCCESS, T.SUCCESS_LT,
-                             "Respaldo Programado Semanal",
-                             "Integridad verificada • Almacenamiento Seguro",
-                             "22 May, 03:00", "EXITOSA", T.SUCCESS),
-                ],
-                spacing=0,
-            ),
-        )
-
-        # Uso de almacenamiento
-        storage_card = card(
-            ft.Column(
-                controls=[
-                    ft.Text("Uso de Almacenamiento", size=14,
-                            weight=ft.FontWeight.BOLD, color=T.TEXT_H),
-                    ft.Container(height=14),
-                    ft.Stack(
-                        controls=[
-                            ft.Container(
-                                width=100, height=100,
-                                border_radius=50,
-                                bgcolor=T.INPUT_BG,
-                            ),
-                            ft.Container(
-                                width=70, height=70,
-                                border_radius=35,
-                                bgcolor=T.CARD_BG,
-                                left=15, top=15,
-                            ),
-                            ft.Container(
-                                content=ft.Column(
-                                    controls=[
-                                        ft.Text("70%", size=16, weight=ft.FontWeight.BOLD,
-                                                color=T.TEXT_H),
-                                        ft.Text("3.5 GB / 5 GB", size=9, color=T.TEXT_MUTED),
-                                    ],
-                                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                    spacing=0,
-                                ),
-                                width=100, height=100,
-                                alignment=ft.Alignment(0, 0),
-                            ),
-                        ],
-                        width=100, height=100,
-                    ),
-                    ft.Container(height=14),
-                    ft.Divider(height=0.5, color=T.DIVIDER),
-                    ft.Container(height=8),
-                    ft.Row(
-                        controls=[
-                            ft.Text("Archivos de Catálogo", size=12, color=T.TEXT_MUTED,
-                                    expand=True),
-                            ft.Text("1.2 GB", size=12, weight=ft.FontWeight.W_600,
-                                    color=T.TEXT_H),
-                        ],
-                    ),
-                    ft.Container(height=4),
-                    ft.Row(
-                        controls=[
-                            ft.Text("Historial de Boletas", size=12, color=T.TEXT_MUTED,
-                                    expand=True),
-                            ft.Text("2.3 GB", size=12, weight=ft.FontWeight.W_600,
-                                    color=T.TEXT_H),
-                        ],
-                    ),
-                ],
-                spacing=4,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-        )
-
-        # Banner de seguridad
         security_banner = ft.Container(
             content=ft.Column(
                 controls=[
@@ -2592,31 +2486,15 @@ class SyncView(ft.Container):
             margin=ft.margin.only(top=14),
         )
 
-        left_col = ft.Column(
-            controls=[
-                status_card,
-                ft.Container(height=12),
-                card(ft.Column(controls=[info_row, ft.Container(height=14), action_btns], spacing=0)),
-                ft.Container(height=12),
-                hist_card,
-                security_banner,
-            ],
-            expand=True,
-        )
-
         self.content = ft.Column(
             controls=[
                 section_header("Sincronización y Respaldo",
                                "Gestiona la integridad de tus datos y la nube de Papelería Pro."),
                 ft.Container(height=14),
-                ft.Row(
-                    controls=[
-                        ft.Container(left_col, expand=True),
-                        ft.Container(storage_card, width=240),
-                    ],
-                    spacing=14,
-                    vertical_alignment=ft.CrossAxisAlignment.START,
-                ),
+                status_card,
+                ft.Container(height=12),
+                card(ft.Column(controls=[action_btns], spacing=0)),
+                security_banner,
             ],
             scroll=ft.ScrollMode.AUTO,
             expand=True,
@@ -2651,6 +2529,7 @@ def main(page: ft.Page):
         "gastos":    GastosView,
         "boletas":   VentasView,
         "reportes":  ReportesView,
+        "asistente": AsistenteIAView,
         "sync":      SyncView,
     }
 

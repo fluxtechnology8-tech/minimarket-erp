@@ -5,3 +5,4 @@ from views.pages.boletas import BoletasView
 from views.pages.gastos import GastosView
 from views.pages.reportes import ReportesView
 from views.pages.sync_view import SyncView
+from views.pages.login import LoginView
