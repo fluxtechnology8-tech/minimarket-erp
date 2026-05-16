@@ -47,6 +47,21 @@ class VentaRepository:
             count = session.query(Venta).count()
             return count + 1
 
+    def get_by_numero_boleta(self, numero_boleta: str) -> dict | None:
+        with self._sm.get_session() as session:
+            venta = session.query(Venta).filter(Venta.numero_boleta == numero_boleta).first()
+            return self._to_dict(venta) if venta else None
+
+    def get_by_cliente_documento(self, cliente_documento: str) -> list[dict]:
+        with self._sm.get_session() as session:
+            ventas = (
+                session.query(Venta)
+                .filter(Venta.cliente_documento == cliente_documento)
+                .order_by(Venta.fecha.desc())
+                .all()
+            )
+            return [self._to_dict(v) for v in ventas]
+
     def _to_dict(self, v: Venta) -> dict:
         return {
             "id": v.id,

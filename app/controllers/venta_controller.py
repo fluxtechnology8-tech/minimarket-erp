@@ -19,3 +19,9 @@ class VentaController:
 
     def generar_boleta(self, items: list[dict], cliente_nombre: str = "", cliente_documento: str = "") -> dict:
         return self.service.generar_boleta(items, cliente_nombre, cliente_documento)
+
+    def get_by_numero_boleta(self, numero_boleta: str) -> dict | None:
+        return self.service.get_by_numero_boleta(numero_boleta)
+
+    def get_by_cliente_documento(self, cliente_documento: str) -> list[dict]:
+        return self.service.get_by_cliente_documento(cliente_documento)

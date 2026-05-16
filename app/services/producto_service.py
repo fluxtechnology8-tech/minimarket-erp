@@ -22,6 +22,7 @@ class ProductoService:
         if not codigo:
             raise ValueError("El código del producto es obligatorio.")
 
+        # Mejorar esto. Cuando se agregue el producto #1000, esto va a ir lento
         existentes = self.producto_repo.get_all(activos_only=False)
         if any(p["codigo"] == codigo for p in existentes):
             raise ValueError(f"Ya existe un producto con el código '{codigo}'.")

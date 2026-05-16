@@ -86,3 +86,9 @@ class VentaService:
             })
 
         return {"success": True, "numero_boleta": numero}
+
+    def get_by_numero_boleta(self, numero_boleta: str) -> dict | None:
+        return self.venta_repo.get_by_numero_boleta(numero_boleta)
+
+    def get_by_cliente_documento(self, cliente_documento: str) -> list[dict]:
+        return self.venta_repo.get_by_cliente_documento(cliente_documento)
